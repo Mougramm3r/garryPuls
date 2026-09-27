@@ -5,10 +5,15 @@ local Get = HunterTools.Get
 
 -- Tastenbelegung (nur für dich, wird gespeichert)
 local keys = {
-	menu   = CreateClientConVar("ht_key_menu", tostring(KEY_F5), true, false, "Taste: Menü"),
-	aim    = CreateClientConVar("ht_key_aim", tostring(KEY_PAD_1), true, false, "Taste: Aim-Hilfe an/aus"),
-	esp    = CreateClientConVar("ht_key_esp", tostring(KEY_PAD_2), true, false, "Taste: Radar an/aus"),
-	chaser = CreateClientConVar("ht_key_chaser", tostring(KEY_PAD_3), true, false, "Taste: Chaser-Puls"),
+	menu     = CreateClientConVar("ht_key_menu", tostring(KEY_F5), true, false, "Taste: Menü"),
+	aim      = CreateClientConVar("ht_key_aim", tostring(KEY_PAD_1), true, false, "Taste: Aim-Hilfe an/aus"),
+	esp      = CreateClientConVar("ht_key_esp", tostring(KEY_PAD_2), true, false, "Taste: Radar an/aus"),
+	chaser   = CreateClientConVar("ht_key_chaser", tostring(KEY_PAD_3), true, false, "Taste: Chaser-Puls"),
+	roar     = CreateClientConVar("ht_key_roar", tostring(KEY_PAD_4), true, false, "Taste: Brüllen"),
+	noise    = CreateClientConVar("ht_key_noise", tostring(KEY_PAD_5), true, false, "Taste: Geräusch-Radar an/aus"),
+	tracks   = CreateClientConVar("ht_key_tracks", tostring(KEY_PAD_6), true, false, "Taste: Fußspuren an/aus"),
+	heart    = CreateClientConVar("ht_key_heart", tostring(KEY_PAD_7), true, false, "Taste: Herzschlag an/aus"),
+	teleport = CreateClientConVar("ht_key_teleport", tostring(KEY_PAD_8), true, false, "Taste: Teleport"),
 }
 
 local function Notify(msg)
@@ -115,20 +120,29 @@ local function ToggleSetting(key, allowed, name)
 	Notify(name .. " " .. (on and "AN" or "AUS"))
 end
 
-local function TriggerChaser()
-	local me = LP()
-	if not me then return end
-	if not CV.allowChaser:GetBool() then Notify("Chaser-Modus ist auf diesem Server deaktiviert.") return end
+local abilityInfo = {
+	chaser   = { allow = CV.allowChaser,   ready = "HT_ChaserReady",   name = "Chaser-Puls",
+		sound = "ambient/levels/citadel/weapon_disintegrate2.wav" },
+	roar     = { allow = CV.allowRoar,     ready = "HT_RoarReady",     name = "Brüllen" },
+	teleport = { allow = CV.allowTeleport, ready = "HT_TeleportReady", name = "Teleport" },
+}
 
-	local wait = me:GetNWFloat("HT_ChaserReady", 0) - CurTime()
+local function UseAbility(name)
+	local me = LP()
+	local info = abilityInfo[name]
+	if not me then return end
+	if not info.allow:GetBool() then Notify(info.name .. " ist auf diesem Server deaktiviert.") return end
+
+	local wait = me:GetNWFloat(info.ready, 0) - CurTime()
 	if wait > 0 then
-		Notify(string.format("Chaser lädt noch (%.0fs)", wait))
+		Notify(string.format("%s lädt noch (%.0fs)", info.name, wait))
 		return
 	end
 
-	net.Start("HT_Chaser")
+	net.Start("HT_Ability")
+	net.WriteUInt(HunterTools.AbilityID[name], 4)
 	net.SendToServer()
-	surface.PlaySound("ambient/levels/citadel/weapon_disintegrate2.wav")
+	if info.sound then surface.PlaySound(info.sound) end
 end
 
 ------------------------------------------------------------------------
@@ -259,6 +273,11 @@ local function BuildAbilities(parent, target)
 	SettingSlider(parent, "Radius (Units)", target, "HT_ChaserCfgRadius", 0)
 	SettingSlider(parent, "Dauer (Sekunden)", target, "HT_ChaserCfgTime", 1)
 	if not CV.allowChaser:GetBool() then AddInfo(parent, "Chaser-Modus ist im Tab \"Server\" gerade verboten.") end
+
+	AddHeader(parent, "Sinne")
+	SettingCheck(parent, "Geräusch-Radar (Sprinten, Springen, Schießen)", target, "HT_NoiseOn")
+	SettingCheck(parent, "Fußspuren sehen", target, "HT_TracksOn")
+	SettingCheck(parent, "Herzschlag-Sensor", target, "HT_HeartOn")
 end
 
 local function SetHunterOnServer(ply, state)
@@ -289,7 +308,9 @@ local function BuildHunterTab(tab)
 			AddInfo(tab, "Der Host kann dich im Menü zum Jäger machen.")
 		end
 	else
-		AddButton(tab, "Chaser-Puls jetzt auslösen", TriggerChaser)
+		AddButton(tab, "Chaser-Puls jetzt auslösen", function() UseAbility("chaser") end)
+		AddButton(tab, "Brüllen", function() UseAbility("roar") end)
+		AddButton(tab, "Teleport (dorthin, wo du hinschaust)", function() UseAbility("teleport") end)
 	end
 
 	BuildAbilities(tab, me)
@@ -299,6 +320,11 @@ local function BuildHunterTab(tab)
 	AddBinder(tab, "Aim-Hilfe an/aus", keys.aim)
 	AddBinder(tab, "Radar an/aus", keys.esp)
 	AddBinder(tab, "Chaser-Puls", keys.chaser)
+	AddBinder(tab, "Brüllen", keys.roar)
+	AddBinder(tab, "Geräusch-Radar an/aus", keys.noise)
+	AddBinder(tab, "Fußspuren an/aus", keys.tracks)
+	AddBinder(tab, "Herzschlag an/aus", keys.heart)
+	AddBinder(tab, "Teleport", keys.teleport)
 end
 
 -- Zahnrad: Jäger-Tab eines anderen Spielers
@@ -387,6 +413,11 @@ local function BuildServerTab(tab)
 	ServerCheck(tab, "Aim-Hilfe erlauben", CV.allowAim)
 	ServerCheck(tab, "Radar erlauben", CV.allowESP)
 	ServerCheck(tab, "Chaser-Modus erlauben", CV.allowChaser)
+	ServerCheck(tab, "Brüllen erlauben", CV.allowRoar)
+	ServerCheck(tab, "Geräusch-Radar erlauben", CV.allowNoise)
+	ServerCheck(tab, "Fußspuren erlauben", CV.allowTracks)
+	ServerCheck(tab, "Herzschlag-Sensor erlauben", CV.allowHeart)
+	ServerCheck(tab, "Teleport erlauben", CV.allowTeleport)
 
 	AddHeader(tab, "Grenzen")
 	ServerSlider(tab, "Max. Aim-Stärke", CV.aimMaxStrength, 2)
@@ -394,6 +425,22 @@ local function BuildServerTab(tab)
 	ServerSlider(tab, "Max. Chaser-Radius", CV.chaserMaxRadius, 0)
 	ServerSlider(tab, "Max. Chaser-Dauer", CV.chaserMaxTime, 1)
 	ServerSlider(tab, "Chaser-Abklingzeit", CV.chaserCooldown, 0)
+
+	AddHeader(tab, "Brüllen")
+	ServerSlider(tab, "Radius", CV.roarRadius, 0)
+	ServerSlider(tab, "Tempo der Opfer", CV.roarSlow, 2)
+	ServerSlider(tab, "Dauer (s)", CV.roarDuration, 1)
+	ServerSlider(tab, "Abklingzeit (s)", CV.roarCooldown, 0)
+
+	AddHeader(tab, "Sinne")
+	ServerSlider(tab, "Geräusch-Radar Reichweite", CV.noiseRadius, 0)
+	ServerSlider(tab, "Fußspuren Reichweite", CV.tracksRadius, 0)
+	ServerSlider(tab, "Fußspuren sichtbar (s)", CV.tracksTime, 0)
+	ServerSlider(tab, "Herzschlag hörbar ab", CV.heartRange, 0)
+
+	AddHeader(tab, "Teleport")
+	ServerSlider(tab, "Reichweite", CV.teleportRange, 0)
+	ServerSlider(tab, "Abklingzeit (s)", CV.teleportCooldown, 0)
 end
 
 function OpenMenu(activeTab)
@@ -445,17 +492,22 @@ hook.Add("Think", "HT_Keys", function()
 	if not me then return end
 
 	-- Immer alle Tasten abfragen, damit beim Freigeben nichts nachträglich auslöst.
-	local pMenu, pAim, pESP, pChaser =
-		JustPressed(keys.menu), JustPressed(keys.aim), JustPressed(keys.esp), JustPressed(keys.chaser)
+	local pressed = {}
+	for name, cvar in pairs(keys) do pressed[name] = JustPressed(cvar) end
 
 	if input.IsKeyTrapping() or gui.IsGameUIVisible() or gui.IsConsoleVisible() or me:IsTyping() then return end
 
-	if pMenu and (HunterTools.IsHunter(me) or HunterTools.IsManager(me)) then OpenMenu() end
+	if pressed.menu and (HunterTools.IsHunter(me) or HunterTools.IsManager(me)) then OpenMenu() end
 	if IsValid(menuFrame) or IsValid(playerFrame) or not HunterTools.IsHunter(me) then return end
 
-	if pAim then ToggleSetting("HT_AimOn", CV.allowAim, "Aim-Hilfe") end
-	if pESP then ToggleSetting("HT_ESP", CV.allowESP, "Radar") end
-	if pChaser then TriggerChaser() end
+	if pressed.aim then ToggleSetting("HT_AimOn", CV.allowAim, "Aim-Hilfe") end
+	if pressed.esp then ToggleSetting("HT_ESP", CV.allowESP, "Radar") end
+	if pressed.noise then ToggleSetting("HT_NoiseOn", CV.allowNoise, "Geräusch-Radar") end
+	if pressed.tracks then ToggleSetting("HT_TracksOn", CV.allowTracks, "Fußspuren") end
+	if pressed.heart then ToggleSetting("HT_HeartOn", CV.allowHeart, "Herzschlag") end
+	if pressed.chaser then UseAbility("chaser") end
+	if pressed.roar then UseAbility("roar") end
+	if pressed.teleport then UseAbility("teleport") end
 end)
 
 ------------------------------------------------------------------------
@@ -628,6 +680,23 @@ hook.Add("HUDPaint", "HT_HUD", function()
 		lines[#lines + 1] = { "Chaser: bereit", Color(120, 255, 120) }
 	end
 
+	for _, a in ipairs({ { "Brüllen", "HT_RoarReady", CV.allowRoar }, { "Teleport", "HT_TeleportReady", CV.allowTeleport } }) do
+		if a[3]:GetBool() then
+			local r = me:GetNWFloat(a[2], 0)
+			if r > now then
+				lines[#lines + 1] = { string.format("%s: lädt %.0fs", a[1], r - now), Color(160, 160, 160) }
+			else
+				lines[#lines + 1] = { a[1] .. ": bereit", Color(120, 255, 120) }
+			end
+		end
+	end
+
+	local senses = {}
+	if Get(me, "HT_NoiseOn") and CV.allowNoise:GetBool() then senses[#senses + 1] = "Geräusche" end
+	if Get(me, "HT_TracksOn") and CV.allowTracks:GetBool() then senses[#senses + 1] = "Spuren" end
+	if Get(me, "HT_HeartOn") and CV.allowHeart:GetBool() then senses[#senses + 1] = "Herzschlag" end
+	if #senses > 0 then lines[#lines + 1] = { "Sinne: " .. table.concat(senses, ", "), color_white } end
+
 	for i, l in ipairs(lines) do
 		draw.SimpleTextOutlined(l[1], "DermaDefaultBold", 20, 20 + (i - 1) * 16, l[2], TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP, 1, color_black)
 	end
@@ -644,4 +713,141 @@ hook.Add("HUDPaint", "HT_HUD", function()
 			end
 		end
 	end
+end)
+
+------------------------------------------------------------------------
+-- Brüllen: Wirkung beim Opfer (Bildschirm wackelt, rote Tönung)
+------------------------------------------------------------------------
+
+net.Receive("HT_Roared", function()
+	local duration = net.ReadFloat()
+	util.ScreenShake(LocalPlayer():GetPos(), 12, 8, duration, 200)
+end)
+
+hook.Add("RenderScreenspaceEffects", "HT_RoarTint", function()
+	local me = LP()
+	if not me then return end
+	local left = me:GetNWFloat("HT_SlowUntil", 0) - CurTime()
+	if left <= 0 then return end
+	local k = math.Clamp(left, 0, 1)
+	DrawColorModify({
+		["$pp_colour_addr"] = 0.12 * k,
+		["$pp_colour_addg"] = 0,
+		["$pp_colour_addb"] = 0,
+		["$pp_colour_brightness"] = -0.05 * k,
+		["$pp_colour_contrast"] = 1 + 0.2 * k,
+		["$pp_colour_colour"] = 1 - 0.5 * k,
+		["$pp_colour_mulr"] = 0,
+		["$pp_colour_mulg"] = 0,
+		["$pp_colour_mulb"] = 0,
+	})
+end)
+
+------------------------------------------------------------------------
+-- Geräusch-Radar: kurze Pings an Orten, an denen jemand Lärm gemacht hat
+------------------------------------------------------------------------
+
+local PING_TIME = 2.5
+local pingStyle = {
+	{ label = "Rennen",  color = Color(255, 200, 60) },
+	{ label = "Sprung",  color = Color(120, 200, 255) },
+	{ label = "Schuss",  color = Color(255, 60, 60) },
+}
+local pings = {}
+
+net.Receive("HT_Ping", function()
+	local pos = net.ReadVector()
+	local kind = net.ReadUInt(2)
+	pings[#pings + 1] = { pos = pos, kind = kind, time = CurTime() }
+end)
+
+hook.Add("HUDPaint", "HT_Pings", function()
+	if #pings == 0 then return end
+	local now = CurTime()
+	for i = #pings, 1, -1 do
+		local p = pings[i]
+		local age = now - p.time
+		if age > PING_TIME then
+			table.remove(pings, i)
+		else
+			local scr = p.pos:ToScreen()
+			if scr.visible then
+				local style = pingStyle[p.kind] or pingStyle[1]
+				local alpha = 255 * (1 - age / PING_TIME)
+				local c = ColorAlpha(style.color, alpha)
+				surface.DrawCircle(scr.x, scr.y, 6 + age * 25, c)
+				surface.DrawCircle(scr.x, scr.y, 4, c)
+				draw.SimpleTextOutlined(style.label, "DermaDefault", scr.x, scr.y - 12, c,
+					TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM, 1, Color(0, 0, 0, alpha))
+			end
+		end
+	end
+end)
+
+------------------------------------------------------------------------
+-- Fußspuren: leuchtende Abdrücke am Boden, nur für den Jäger
+------------------------------------------------------------------------
+
+local footMat = Material("sprites/light_glow02_add")
+local prints = {}
+
+net.Receive("HT_Tracks", function()
+	local now = CurTime()
+	for _ = 1, net.ReadUInt(8) do
+		local pos, yaw, left = net.ReadVector(), net.ReadFloat(), net.ReadBool()
+		local side = Angle(0, yaw, 0):Right() * (left and -5 or 5)
+		prints[#prints + 1] = { pos = pos + side + Vector(0, 0, 2), yaw = yaw, time = now }
+	end
+end)
+
+hook.Add("PostDrawTranslucentRenderables", "HT_Tracks", function(depth, sky)
+	if depth or sky or #prints == 0 then return end
+	local now, life = CurTime(), CV.tracksTime:GetFloat()
+	local up = Vector(0, 0, 1)
+
+	render.SetMaterial(footMat)
+	for i = #prints, 1, -1 do
+		local p = prints[i]
+		local age = now - p.time
+		if age > life then
+			table.remove(prints, i)
+		else
+			local a = 255 * (1 - age / life)
+			render.DrawQuadEasy(p.pos, up, 10, 16, Color(60, 200, 255, a), p.yaw)
+		end
+	end
+end)
+
+------------------------------------------------------------------------
+-- Herzschlag: je näher das nächste Opfer, desto schneller und lauter
+------------------------------------------------------------------------
+
+local HEART_SOUND = "physics/body/body_medium_impact_soft1.wav"
+local heartDist, heartTime, nextBeat = -1, 0, 0
+
+net.Receive("HT_Heart", function()
+	heartDist = net.ReadFloat()
+	heartTime = CurTime()
+end)
+
+hook.Add("Think", "HT_Heartbeat", function()
+	local me = LP()
+	if not me or not HunterTools.IsHunter(me) or not me:Alive() then return end
+	if not Get(me, "HT_HeartOn") or not CV.allowHeart:GetBool() then return end
+	if CurTime() - heartTime > 1 then return end -- keine aktuellen Daten
+
+	local range = CV.heartRange:GetFloat()
+	if heartDist < 0 or heartDist > range then return end
+
+	local now = CurTime()
+	if now < nextBeat then return end
+
+	local closeness = 1 - heartDist / range
+	nextBeat = now + Lerp(closeness, 1.4, 0.35)
+
+	local vol = Lerp(closeness, 0.25, 1)
+	me:EmitSound(HEART_SOUND, 75, 60, vol, CHAN_STATIC)
+	timer.Simple(0.16, function()
+		if IsValid(me) then me:EmitSound(HEART_SOUND, 75, 52, vol * 0.8, CHAN_STATIC) end
+	end)
 end)

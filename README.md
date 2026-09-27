@@ -30,6 +30,11 @@ Alles läuft über das Menü, du brauchst keine Konsolenbefehle. Alle Spieler se
 | Aim-Hilfe | **Numpad 1** | Zieht das Fadenkreuz auf den nächsten sichtbaren Spieler im Kreis. Der Kreis in der Bildschirmmitte zeigt den Winkel und wird grün, sobald ein Ziel erfasst ist. Optional auch auf NPCs/Nextbots (gut zum Testen). |
 | Radar | **Numpad 2** | Alle Spieler rot umrandet durch Wände, mit Name und Entfernung |
 | Chaser-Puls | **Numpad 3** | Schwächere Variante: Spieler im Radius erscheinen kurz als Wärmebild (Radius und Dauer einstellbar, Standard 1500 Units / 5 s) |
+| Brüllen | **Numpad 4** | Schrei; Opfer im Radius werden kurz langsamer, ihr Bildschirm wackelt und färbt sich rot |
+| Geräusch-Radar | **Numpad 5** | Wer sprintet, springt oder schießt, erscheint kurz als Ping. Wer geht oder schleicht, bleibt unsichtbar |
+| Fußspuren | **Numpad 6** | Opfer hinterlassen leuchtende Fußabdrücke, die nur der Jäger sieht |
+| Herzschlag | **Numpad 7** | Je näher das nächste Opfer, desto schneller und lauter der Herzschlag. Zeigt keine Richtung |
+| Teleport | **Numpad 8** | Teleportiert dorthin, wo du hinschaust (kurze Reichweite, lange Abklingzeit) |
 
 Alle Tasten kannst du im Menü neu belegen (auf das Feld klicken, dann die neue Taste drücken).
 
@@ -53,6 +58,12 @@ Der Jäger kann im Menü nur bis zu diesen Grenzen einstellen.
 | `ht_chaser_max_duration` | 10 | Maximale Chaser-Dauer in Sekunden |
 | `ht_chaser_cooldown` | 15 | Abklingzeit nach einem Puls in Sekunden |
 | `ht_admins_are_hunters` | 0 | Admins werden beim Joinen automatisch Jäger |
+| `ht_allow_roar` / `ht_allow_noise` / `ht_allow_tracks` / `ht_allow_heart` / `ht_allow_teleport` | 1 | Neue Fähigkeiten einzeln erlauben |
+| `ht_roar_radius` / `ht_roar_slow` / `ht_roar_duration` / `ht_roar_cooldown` | 600 / 0.5 / 3 / 30 | Brüllen: Radius, Tempo der Opfer, Dauer, Abklingzeit |
+| `ht_noise_radius` | 2500 | Reichweite des Geräusch-Radars |
+| `ht_tracks_radius` / `ht_tracks_time` | 3000 / 8 | Fußspuren: Reichweite und Sichtdauer |
+| `ht_heart_range` | 1500 | Herzschlag ab dieser Entfernung hörbar |
+| `ht_teleport_range` / `ht_teleport_cooldown` | 800 / 45 | Teleport: Reichweite und Abklingzeit |
 
 ## Wie es funktioniert
 

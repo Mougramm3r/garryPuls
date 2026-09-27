@@ -16,6 +16,26 @@ HunterTools.CV = {
 	chaserMaxTime    = CreateConVar("ht_chaser_max_duration", "10", SV_FLAGS, "Maximale Chaser-Dauer in Sekunden", 1, 60),
 	chaserCooldown   = CreateConVar("ht_chaser_cooldown", "15", SV_FLAGS, "Abklingzeit nach einem Chaser-Puls in Sekunden", 0, 600),
 	adminsAreHunters = CreateConVar("ht_admins_are_hunters", "0", SV_FLAGS, "Admins werden beim Joinen automatisch Jäger", 0, 1),
+
+	allowRoar        = CreateConVar("ht_allow_roar", "1", SV_FLAGS, "Brüllen erlauben", 0, 1),
+	roarRadius       = CreateConVar("ht_roar_radius", "600", SV_FLAGS, "Brüllen: Radius in Units", 100, 3000),
+	roarSlow         = CreateConVar("ht_roar_slow", "0.5", SV_FLAGS, "Brüllen: Tempo der Opfer (0.5 = halb so schnell)", 0.1, 1),
+	roarDuration     = CreateConVar("ht_roar_duration", "3", SV_FLAGS, "Brüllen: Dauer der Verlangsamung in Sekunden", 0.5, 10),
+	roarCooldown     = CreateConVar("ht_roar_cooldown", "30", SV_FLAGS, "Brüllen: Abklingzeit in Sekunden", 0, 600),
+
+	allowNoise       = CreateConVar("ht_allow_noise", "1", SV_FLAGS, "Geräusch-Radar erlauben", 0, 1),
+	noiseRadius      = CreateConVar("ht_noise_radius", "2500", SV_FLAGS, "Geräusch-Radar: Reichweite in Units", 200, 20000),
+
+	allowTracks      = CreateConVar("ht_allow_tracks", "1", SV_FLAGS, "Fußspuren erlauben", 0, 1),
+	tracksRadius     = CreateConVar("ht_tracks_radius", "3000", SV_FLAGS, "Fußspuren: Reichweite in Units", 200, 20000),
+	tracksTime       = CreateConVar("ht_tracks_time", "8", SV_FLAGS, "Fußspuren: sichtbar für Sekunden", 1, 30),
+
+	allowHeart       = CreateConVar("ht_allow_heart", "1", SV_FLAGS, "Herzschlag-Sensor erlauben", 0, 1),
+	heartRange       = CreateConVar("ht_heart_range", "1500", SV_FLAGS, "Herzschlag: ab dieser Entfernung hörbar", 200, 5000),
+
+	allowTeleport    = CreateConVar("ht_allow_teleport", "1", SV_FLAGS, "Teleport erlauben", 0, 1),
+	teleportRange    = CreateConVar("ht_teleport_range", "800", SV_FLAGS, "Teleport: maximale Reichweite in Units", 100, 5000),
+	teleportCooldown = CreateConVar("ht_teleport_cooldown", "45", SV_FLAGS, "Teleport: Abklingzeit in Sekunden", 0, 600),
 }
 
 local CV = HunterTools.CV
@@ -34,7 +54,15 @@ HunterTools.Settings = {
 	{ key = "HT_ESPNames",        type = "bool",  default = true },
 	{ key = "HT_ChaserCfgRadius", type = "float", default = 1500, min = 100, max = Limit(CV.chaserMaxRadius) },
 	{ key = "HT_ChaserCfgTime",   type = "float", default = 5,    min = 1,   max = Limit(CV.chaserMaxTime) },
+	{ key = "HT_NoiseOn",         type = "bool",  default = false },
+	{ key = "HT_TracksOn",        type = "bool",  default = false },
+	{ key = "HT_HeartOn",         type = "bool",  default = false },
 }
+
+-- Fähigkeiten mit Abklingzeit, die der Jäger per Taste auslöst (Reihenfolge = Netzwerk-ID)
+HunterTools.Abilities = { "chaser", "roar", "teleport" }
+HunterTools.AbilityID = {}
+for i, name in ipairs(HunterTools.Abilities) do HunterTools.AbilityID[name] = i end
 
 HunterTools.SettingByKey = {}
 for _, s in ipairs(HunterTools.Settings) do
@@ -72,3 +100,11 @@ end
 function HunterTools.ChaserActive(ply)
 	return ply:GetNWFloat("HT_ChaserUntil", 0) > CurTime()
 end
+
+-- Brüllen: getroffene Opfer sind kurz langsamer (in SetupMove, damit es auch vorhergesagt wird)
+hook.Add("SetupMove", "HT_RoarSlow", function(ply, mv)
+	if ply:GetNWFloat("HT_SlowUntil", 0) <= CurTime() then return end
+	local f = ply:GetNWFloat("HT_SlowFactor", 1)
+	mv:SetMaxClientSpeed(mv:GetMaxClientSpeed() * f)
+	mv:SetMaxSpeed(mv:GetMaxSpeed() * f)
+end)
