@@ -1,6 +1,6 @@
--- Hunter Tools: client (keys, abilities, effects, HUD)
+-- PULSE: client (keys, abilities, effects, HUD)
 
-local HT = HunterTools
+local HT = Pulse
 local CV = HT.CV
 local Get = HT.Get
 
@@ -26,14 +26,14 @@ local C = HT.Colors
 
 -- Keys (only for you, saved)
 HT.Keys = {
-	menu = CreateClientConVar("ht_key_menu", tostring(KEY_F5), true, false, "Key: open menu"),
+	menu = CreateClientConVar("pulse_key_menu", tostring(KEY_F5), true, false, "Key: open menu"),
 }
 for i = 1, HT.SLOTS do
-	HT.Keys["slot" .. i] = CreateClientConVar("ht_key_slot" .. i, tostring(KEY_PAD_0 + i), true, false, "Key: ability slot " .. i)
+	HT.Keys["slot" .. i] = CreateClientConVar("pulse_key_slot" .. i, tostring(KEY_PAD_0 + i), true, false, "Key: ability slot " .. i)
 end
 HT.KeyDefaults = { menu = KEY_F5, slot1 = KEY_PAD_1, slot2 = KEY_PAD_2, slot3 = KEY_PAD_3, slot4 = KEY_PAD_4 }
 
-HT.SoundMode = CreateClientConVar("ht_sound_mode", "2", true, false, "Scary sounds: where to play (1-4)", 1, 4)
+HT.SoundMode = CreateClientConVar("pulse_sound_mode", "2", true, false, "Scary sounds: where to play (1-4)", 1, 4)
 
 function HT.KeyName(code)
 	code = tonumber(code) or 0
@@ -43,7 +43,7 @@ function HT.KeyName(code)
 end
 
 function HT.Notify(msg)
-	chat.AddText(C.accent, "[Hunter] ", color_white, msg)
+	chat.AddText(C.accent, "[PULSE] ", color_white, msg)
 end
 
 local function LP()
@@ -91,7 +91,7 @@ hook.Add("InitPostEntity", "HT_Restore", function()
 		local me = LP()
 		if not me then return end
 		for _, s in ipairs(HT.Settings) do
-			local saved = cookie.GetString("ht2_" .. s.key)
+			local saved = cookie.GetString("pulse_" .. s.key)
 			if saved then HT.SendSetting(me, s.key, saved, true) end
 		end
 		restored = true
@@ -103,7 +103,7 @@ timer.Create("HT_Save", 3, 0, function()
 	if not me or not restored then return end
 	for _, s in ipairs(HT.Settings) do
 		local v = Get(me, s.key)
-		cookie.Set("ht2_" .. s.key, isbool(v) and (v and "1" or "0") or tostring(v))
+		cookie.Set("pulse_" .. s.key, isbool(v) and (v and "1" or "0") or tostring(v))
 	end
 end)
 
@@ -361,9 +361,16 @@ end
 
 hook.Add("PreDrawHalos", "HT_Halos", function()
 	local me = LP()
-	if me and HT.IsOn(me, "radar") then
+	if not me or not HT.IsHunter(me) then return end
+	if HT.IsOn(me, "radar") then
 		halo.Add(SenseTargets(), Color(255, 40, 40), 2, 2, 1, true, true)
 	end
+	-- insane victims light up now and then
+	local revealed = {}
+	for _, ply in ipairs(Targets()) do
+		if HT.IsRevealed(ply) then revealed[#revealed + 1] = ply end
+	end
+	if #revealed > 0 then halo.Add(revealed, Color(190, 90, 255), 3, 3, 2, true, true) end
 end)
 
 local thermalMat = Material("models/debug/debugwhite")
@@ -428,6 +435,7 @@ end)
 
 local PING_TIME = 2.5
 local pingStyle = {
+	[0] = { label = "Steps", color = Color(200, 200, 200) },
 	{ label = "Running", color = Color(255, 200, 60) },
 	{ label = "Jump",    color = Color(120, 200, 255) },
 	{ label = "Shot",    color = Color(255, 60, 60) },
@@ -470,9 +478,9 @@ local prints = {}
 net.Receive("HT_Tracks", function()
 	local now = CurTime()
 	for _ = 1, net.ReadUInt(8) do
-		local pos, yaw, left = net.ReadVector(), net.ReadFloat(), net.ReadBool()
+		local pos, yaw, left, long = net.ReadVector(), net.ReadFloat(), net.ReadBool(), net.ReadBool()
 		local side = Angle(0, yaw, 0):Right() * (left and -5 or 5)
-		prints[#prints + 1] = { pos = pos + side + Vector(0, 0, 2), yaw = yaw, time = now }
+		prints[#prints + 1] = { pos = pos + side + Vector(0, 0, 2), yaw = yaw, time = now, long = long }
 	end
 end)
 
@@ -484,10 +492,11 @@ hook.Add("PostDrawTranslucentRenderables", "HT_Tracks", function(depth, sky)
 	for i = #prints, 1, -1 do
 		local p = prints[i]
 		local age = now - p.time
-		if age > life then
+		local l = p.long and life * 2 or life -- insane victims leave longer tracks
+		if age > l then
 			table.remove(prints, i)
 		else
-			render.DrawQuadEasy(p.pos, up, 10, 16, Color(60, 200, 255, 255 * (1 - age / life)), p.yaw)
+			render.DrawQuadEasy(p.pos, up, 10, 16, Color(60, 200, 255, 255 * (1 - age / l)), p.yaw)
 		end
 	end
 end)
@@ -498,31 +507,51 @@ end)
 
 local HEART_SOUND = "physics/body/body_medium_impact_soft1.wav"
 local heartDist, heartTime, nextBeat = -1, 0, 0
+local forcedHeartUntil = 0
 
 net.Receive("HT_Heart", function()
 	heartDist = net.ReadFloat()
 	heartTime = CurTime()
 end)
 
+-- "Behind You": the victim's heart races
+net.Receive("HT_ForceHeart", function()
+	forcedHeartUntil = CurTime() + net.ReadFloat()
+end)
+
+-- 0..1, how strong the heartbeat is right now (0 = none)
+local function HeartStrength(me)
+	local now = CurTime()
+	local fresh = now - heartTime < 1 and heartDist >= 0
+
+	if HT.IsHunter(me) then
+		if not HT.IsOn(me, "heart") or not fresh then return 0 end
+		local range = CV.heartRange:GetFloat()
+		return heartDist <= range and 1 - heartDist / range or 0
+	end
+
+	local k = 0
+	if CV.victimHeart:GetBool() and fresh then
+		local range = CV.victimHeartRange:GetFloat()
+		if heartDist <= range then k = 1 - heartDist / range end
+	end
+	-- low sanity: the heartbeat gets louder in general
+	local fear = HT.Fear(me)
+	if fear > 0.4 then k = math.max(k, (fear - 0.4) / 0.6 * 0.85) end
+	if forcedHeartUntil > now then k = 1 end
+	return k
+end
+
 hook.Add("Think", "HT_Heartbeat", function()
 	local me = LP()
 	if not me or not me:Alive() then return end
 
-	local range
-	if HT.IsHunter(me) then
-		if not HT.IsOn(me, "heart") then return end
-		range = CV.heartRange:GetFloat()
-	else
-		if not CV.victimHeart:GetBool() then return end
-		range = CV.victimHeartRange:GetFloat()
-	end
-	if CurTime() - heartTime > 1 then return end
-	if heartDist < 0 or heartDist > range then return end
+	local closeness = HeartStrength(me)
+	if closeness <= 0 then return end
 
 	local now = CurTime()
 	if now < nextBeat then return end
 
-	local closeness = 1 - heartDist / range
 	nextBeat = now + Lerp(closeness, 1.4, 0.35)
 	local vol = Lerp(closeness, 0.25, 1)
 	me:EmitSound(HEART_SOUND, 75, 60, vol, CHAN_STATIC)
@@ -621,6 +650,14 @@ local function DrawHunterHUD(me)
 		y = y + ROW_H + ROW_GAP
 	end
 
+	-- menu-only abilities: no key, used from the hunter menu
+	for _, id in ipairs(lo.menu) do
+		local def = HT.AbilityByID[id]
+		local status, col, frac, outline = AbilityStatus(me, def)
+		DrawRow(x, y, w, "·", def.name, frac and C.muted or C.text, status, col, "MENU", frac, outline)
+		y = y + ROW_H + ROW_GAP
+	end
+
 	DrawRow(x, y, w, "≡", "Hunter menu", C.text, nil, nil, HT.KeyName(HT.Keys.menu:GetInt()))
 	y = y + ROW_H + ROW_GAP
 
@@ -663,7 +700,23 @@ local function DrawVictimHUD(me)
 	if HT.IsHidden(me) then extra[#extra + 1] = { "HIDDEN", C.good } end
 
 	local x = 20
-	local y = ScrH() - 150 - (#rows + #extra) * (ROW_H + ROW_GAP)
+	local bars = {}
+	if CV.sanityEnabled:GetBool() then
+		local san = HT.Sanity(me)
+		bars[#bars + 1] = { "SANITY", san / 100, san < 25 and Color(190, 90, 255) or Color(150, 120, 220) }
+	end
+	if CV.staminaEnabled:GetBool() and HT.InRound() then
+		bars[#bars + 1] = { "STAMINA", me:GetNWFloat("HT_Stamina", 100) / 100,
+			me:GetNWBool("HT_Exhausted", false) and C.accent or C.warn }
+	end
+
+	local y = ScrH() - 150 - (#rows + #extra) * (ROW_H + ROW_GAP) - #bars * 22
+	for _, b in ipairs(bars) do
+		draw.RoundedBox(4, x, y, w, 18, C.panel)
+		draw.RoundedBox(3, x + 72, y + 5, (w - 80) * math.Clamp(b[2], 0, 1), 8, b[3])
+		draw.SimpleText(b[1], "HT_Key", x + 8, y + 9, C.muted, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		y = y + 22
+	end
 	for _, r in ipairs(rows) do
 		local status, col, frac, outline = AbilityStatus(me, r[2])
 		DrawRow(x, y, w, tostring(r[1]), r[2].name, frac and C.muted or C.text, status, col,
@@ -732,4 +785,176 @@ hook.Add("HUDPaint", "HT_HUD", function()
 		surface.SetDrawColor(255, 255, 255, math.Clamp(left / blindTime * 2, 0, 1) * 255)
 		surface.DrawRect(0, 0, ScrW(), ScrH())
 	end
+end)
+
+------------------------------------------------------------------------
+-- Stalk: the camera follows the nearest victim, the body stays frozen
+------------------------------------------------------------------------
+
+hook.Add("CalcView", "HT_Stalk", function(ply, _, _, fov)
+	if not HT.IsActive(ply, "stalk") then return end
+	local t = ply:GetNWEntity("HT_StalkTarget")
+	if not IsValid(t) or t:IsDormant() then return end
+
+	local ang = t:EyeAngles()
+	local eye = t:EyePos()
+	local tr = util.TraceHull({
+		start = eye,
+		endpos = eye - ang:Forward() * 70 + Vector(0, 0, 12),
+		filter = { t, ply },
+		mins = Vector(-4, -4, -4), maxs = Vector(4, 4, 4),
+		mask = MASK_SOLID_BRUSHONLY,
+	})
+	return { origin = tr.HitPos, angles = ang, fov = fov, drawviewer = true }
+end)
+
+hook.Add("HUDPaint", "HT_StalkOverlay", function()
+	local me = LP()
+	if not me or not HT.IsActive(me, "stalk") then return end
+	local t = me:GetNWEntity("HT_StalkTarget")
+	surface.SetDrawColor(0, 0, 0, 120)
+	surface.DrawRect(0, 0, ScrW(), 40)
+	surface.DrawRect(0, ScrH() - 40, ScrW(), 40)
+	draw.SimpleText(string.format("STALKING %s   %.1fs", IsValid(t) and string.upper(t:Nick()) or "", HT.ActiveLeft(me, "stalk")),
+		"HT_Sub", ScrW() / 2, ScrH() - 20, C.accent, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+end)
+
+------------------------------------------------------------------------
+-- Jump scare: the hunter's face right in front of the victim
+------------------------------------------------------------------------
+
+local scare -- { ent, untilTime, duration }
+
+net.Receive("HT_Jumpscare", function()
+	local model = net.ReadString()
+	local duration = net.ReadFloat()
+	if scare and IsValid(scare.ent) then scare.ent:Remove() end
+
+	local ent = ClientsideModel(model ~= "" and model or "models/player/zombie_classic.mdl")
+	if not IsValid(ent) then return end
+	ent:SetNoDraw(true)
+	local seq = ent:LookupSequence("zombie_attack_01")
+	if not seq or seq < 0 then seq = ent:LookupSequence("idle_all_scared") end
+	if seq and seq >= 0 then ent:ResetSequence(seq) end
+	scare = { ent = ent, untilTime = CurTime() + duration, duration = duration }
+
+	surface.PlaySound("npc/fast_zombie/fz_scream1.wav")
+	surface.PlaySound("npc/zombie/zombie_pain6.wav")
+	util.ScreenShake(LocalPlayer():GetPos(), 20, 30, duration + 0.3, 100)
+end)
+
+hook.Add("PostDrawTranslucentRenderables", "HT_Jumpscare", function(depth, sky)
+	if depth or sky or not scare then return end
+	if CurTime() > scare.untilTime or not IsValid(scare.ent) then
+		if IsValid(scare.ent) then scare.ent:Remove() end
+		scare = nil
+		return
+	end
+
+	local me = LP()
+	local eyeAng = me:EyeAngles()
+	local fwd = Angle(0, eyeAng.y, 0):Forward()
+	local jitter = VectorRand() * 1.5
+	local ent = scare.ent
+	ent:SetPos(me:EyePos() + fwd * 24 - Vector(0, 0, 62) + jitter)
+	ent:SetAngles(Angle(0, eyeAng.y + 180, 0))
+	ent:FrameAdvance()
+	ent:SetupBones()
+
+	cam.IgnoreZ(true)
+	render.SuppressEngineLighting(true)
+	render.SetColorModulation(0.55, 0.45, 0.45)
+	ent:DrawModel()
+	render.SetColorModulation(1, 1, 1)
+	render.SuppressEngineLighting(false)
+	cam.IgnoreZ(false)
+end)
+
+hook.Add("RenderScreenspaceEffects", "HT_JumpscareFlash", function()
+	if not scare then return end
+	local k = math.Clamp((scare.untilTime - CurTime()) / scare.duration, 0, 1)
+	DrawColorModify({
+		["$pp_colour_addr"] = 0.25 * k, ["$pp_colour_addg"] = 0, ["$pp_colour_addb"] = 0,
+		["$pp_colour_brightness"] = -0.1 * k, ["$pp_colour_contrast"] = 1 + 0.6 * k,
+		["$pp_colour_colour"] = 1 - 0.7 * k,
+		["$pp_colour_mulr"] = 0, ["$pp_colour_mulg"] = 0, ["$pp_colour_mulb"] = 0,
+	})
+end)
+
+------------------------------------------------------------------------
+-- Low sanity: distorted view; at 0 also whispers and fake hunters
+------------------------------------------------------------------------
+
+local WHISPERS = {
+	"ambient/levels/citadel/strange_talk1.wav",
+	"ambient/levels/citadel/strange_talk3.wav",
+	"ambient/levels/citadel/strange_talk5.wav",
+	"ambient/voices/playground_memory.wav",
+	"npc/stalker/breathing3.wav",
+}
+local nextWhisper, nextPhantom = 0, 0
+local phantom -- { ent, pos, untilTime }
+
+hook.Add("RenderScreenspaceEffects", "HT_Sanity", function()
+	local me = LP()
+	if not me or not HT.IsVictim(me) then return end
+	local fear = HT.Fear(me)
+	if fear < 0.5 then return end
+	local k = (fear - 0.5) * 2
+	DrawColorModify({
+		["$pp_colour_addr"] = 0.03 * k, ["$pp_colour_addg"] = 0, ["$pp_colour_addb"] = 0.02 * k,
+		["$pp_colour_brightness"] = -0.04 * k, ["$pp_colour_contrast"] = 1 + 0.15 * k,
+		["$pp_colour_colour"] = 1 - 0.6 * k,
+		["$pp_colour_mulr"] = 0, ["$pp_colour_mulg"] = 0, ["$pp_colour_mulb"] = 0,
+	})
+	if HT.IsInsane(me) then
+		DrawMotionBlur(0.2, 0.6, 0.02)
+		DrawSharpen(1 + math.sin(CurTime() * 2) * 0.8, 1.2)
+	end
+end)
+
+hook.Add("Think", "HT_Hallucinations", function()
+	local me = LP()
+	if not me or not HT.IsVictim(me) or not HT.IsInsane(me) then return end
+	local now = CurTime()
+
+	if now > nextWhisper then
+		nextWhisper = now + math.random(12, 25)
+		me:EmitSound(WHISPERS[math.random(#WHISPERS)], 60, math.random(80, 110), 0.5, CHAN_STATIC)
+	end
+
+	-- a fake hunter standing somewhere in view for a moment
+	if now > nextPhantom and not phantom then
+		nextPhantom = now + math.random(20, 40)
+		local model
+		for _, ply in ipairs(player.GetAll()) do
+			if HT.IsHunter(ply) then model = ply:GetModel() break end
+		end
+		local ang = Angle(0, me:EyeAngles().y + math.random(-35, 35), 0)
+		local tr = util.TraceLine({ start = me:EyePos(), endpos = me:EyePos() + ang:Forward() * math.random(400, 800), filter = me, mask = MASK_SOLID_BRUSHONLY })
+		local ground = util.TraceLine({ start = tr.HitPos - ang:Forward() * 30, endpos = tr.HitPos - ang:Forward() * 30 - Vector(0, 0, 200), mask = MASK_SOLID_BRUSHONLY })
+		local ent = ClientsideModel(model or "models/player/zombie_classic.mdl")
+		if IsValid(ent) then
+			ent:SetNoDraw(true)
+			ent:SetPos(ground.HitPos)
+			ent:SetAngles(Angle(0, ang.y + 180, 0))
+			phantom = { ent = ent, untilTime = now + 1.2 }
+		end
+	end
+end)
+
+hook.Add("PostDrawTranslucentRenderables", "HT_Phantom", function(depth, sky)
+	if depth or sky or not phantom then return end
+	if CurTime() > phantom.untilTime or not IsValid(phantom.ent) then
+		if IsValid(phantom.ent) then phantom.ent:Remove() end
+		phantom = nil
+		return
+	end
+	render.SuppressEngineLighting(true)
+	render.SetColorModulation(0, 0, 0)
+	render.SetBlend(0.85)
+	phantom.ent:DrawModel()
+	render.SetBlend(1)
+	render.SetColorModulation(1, 1, 1)
+	render.SuppressEngineLighting(false)
 end)

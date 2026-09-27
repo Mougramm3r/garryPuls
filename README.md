@@ -1,4 +1,6 @@
-# Hunter Tools – Garry's Mod Addon
+# PULSE – The Chase of the End
+
+Garry's Mod Addon
 
 Ein Horror-Spielmodus für Garry's Mod (Sandbox): Ein oder mehrere **Jäger** jagen die **Opfer**, die eine bestimmte Zeit überleben müssen.
 Jäger haben Rollen mit Fähigkeiten, die Opfer haben eigene Tricks. Das ganze Menü ist auf Englisch, damit alle mitspielen können.
@@ -8,17 +10,17 @@ Deine Freunde laden den Client-Teil beim Joinen automatisch herunter.
 
 ## Installation
 
-1. Kopiere den Ordner `hunter_tools` nach `garrysmod/addons/`.
-   Richtig ist: `garrysmod/addons/hunter_tools/lua/autorun/hunter_tools_init.lua`.
+1. Kopiere den Ordner `pulse` nach `garrysmod/addons/` (einen alten Ordner `hunter_tools` vorher löschen).
+   Richtig ist: `garrysmod/addons/pulse/lua/autorun/pulse_init.lua`.
 2. Starte GMod, **Neues Spiel** (Sandbox, mehr als 1 Spieler) und hoste die Runde.
-3. Nach dem Joinen kommt im Chat „Hunter Tools loaded“. Mit **F5** öffnest du das Menü.
+3. Nach dem Joinen kommt im Chat „PULSE loaded“. Mit **F5** öffnest du das Menü.
 
 ## Menü (F5)
 
 | Tab | Wer | Inhalt |
 |---|---|---|
 | **Keybinds** | alle | Menü-Taste und die 4 Fähigkeiten-Slots belegen |
-| **Hunter** | Jäger, Admin | Außerhalb der Runde: **Abilities** (ausführen), **Roles** (Rolle wählen), **Default** (eigene Einstellungen und Slots). In der Runde nur die ausführbaren Fähigkeiten |
+| **Hunter** | Jäger, Admin | Außerhalb der Runde: **Abilities** (ausführen, inkl. Menü-Fähigkeiten), **Roles** (Rolle wählen), **Default** (eigene Einstellungen und Slots). In der Runde nur die ausführbaren Fähigkeiten |
 | **Victim** | alle | Fähigkeiten der Opfer |
 | **Players** | Admin | Jäger setzen (zum Testen), „Next round“ für vorausgewählte Jäger, Zahnrad = Default-Einstellungen des Spielers |
 | **Server** | Admin | Werte aller Fähigkeiten (Reichweite, Dauer, Abklingzeit …) |
@@ -57,16 +59,17 @@ Opfer können dem Jäger keinen direkten Schaden machen.
 
 Eine Rolle ist ein Jäger-Preset: ein Name und welche Fähigkeit auf welchem Slot liegt.
 Jede Fähigkeit ist **Off**, auf **Slot 1–4** oder (bei An/Aus-Fähigkeiten) **Passive** = immer an.
-Rollen bearbeitest du im Tab **Game → Role editor**. Sie werden auf dem Server gespeichert (`data/hunter_tools/roles.json`).
+Zusätzlich gibt es **Menu only**: Die Fähigkeit hat keine Taste und wird im Hunter-Menü mit „Use“ ausgelöst (beliebig viele pro Rolle).
+Rollen bearbeitest du im Tab **Game → Role editor**. Sie werden auf dem Server gespeichert (`data/pulse/roles.json`).
 
 Mitgelieferte Rollen:
 
-| Rolle | Slots | Passiv |
-|---|---|---|
-| Stalker | 1 Teleport, 2 Scary Sounds, 3 Roar | Footprints, Heartbeat Sensor |
-| Tracker | 1 Chaser Pulse, 2 Roar, 3 Scary Sounds | Noise Radar, Footprints |
-| Brute | 1 Roar, 2 Teleport, 3 Aim Assist | Heartbeat Sensor |
-| Seer | 1 Radar, 2 Chaser Pulse, 3 Scary Sounds | Heartbeat Sensor |
+| Rolle | Slots | Menü | Passiv |
+|---|---|---|---|
+| Stalker | 1 Behind You, 2 Scary Sounds, 3 Teleport, 4 Roar | Stalk | Footprints, Heartbeat Sensor |
+| Tracker | 1 Chaser Pulse, 2 Roar, 3 Scary Sounds, 4 Stalk | – | Noise Radar, Footprints |
+| Brute | 1 Roar, 2 Teleport, 3 Jump Scare, 4 Aim Assist | – | Heartbeat Sensor |
+| Seer | 1 Radar, 2 Chaser Pulse, 3 Jump Scare, 4 Scary Sounds | Stalk | Heartbeat Sensor |
 
 Rollenvergabe (Game → Role assignment): **Fixed role**, **Player choice** (Auswahlfenster beim Start) oder **Random**.
 
@@ -83,11 +86,14 @@ Rollenvergabe (Game → Role assignment): **Fixed role**, **Player choice** (Aus
 | Noise Radar | Toggle | Wer rennt, springt oder schießt, erscheint als Ping |
 | Footprints | Toggle | Leuchtende Fußspuren der Opfer |
 | Heartbeat Sensor | Toggle | Herzschlag wird schneller, je näher ein Opfer ist |
+| Stalk | Active | Ein paar Sekunden das nächste Opfer beobachten (Kamera hinter ihm), dein Körper bleibt eingefroren stehen |
+| Behind You | Active | Direkt hinter das nächste Opfer teleportieren, eingefroren, kein Angriff. Das Opfer hört Atmen und Herzrasen. Dreht es sich um: leises Geräusch, du verschwindest zurück. Geht es weg: nichts passiert, du kehrst zurück |
+| Jump Scare | Active | Alle Opfer im Radius sehen kurz dein Gesicht direkt vor sich |
 
 HUD des Jägers oben rechts: Slot 1–4 mit Status (READY, Abklingzeit, ACTIVE, ON/OFF) und Taste, darunter die Menü-Taste
 und eine Zeile für die zuletzt benutzte Fähigkeit (läuft … / Abklingzeit …).
 
-**Eigene Sounds:** `.wav`, `.mp3` oder `.ogg` nach `addons/hunter_tools/sound/hunter_tools/` legen (z. B. `kinderlachen.mp3`),
+**Eigene Sounds:** `.wav`, `.mp3` oder `.ogg` nach `addons/pulse/sound/pulse/` legen (z. B. `kinderlachen.mp3`),
 Map neu starten. Sie erscheinen mit ★ in der Soundauswahl.
 
 ## Fähigkeiten der Opfer
@@ -102,3 +108,20 @@ Map neu starten. Sie erscheinen mit ★ in der Soundauswahl.
 | – | Heartbeat | Optional: Opfer hören ihr Herz, wenn ein Jäger nah ist |
 
 Alle Opfer-Fähigkeiten kann der Admin im Tab **Server** einzeln abschalten und einstellen.
+
+## Sanity und Stamina (Opfer)
+
+**Sanity** startet bei 100 % (Balken unten links). Sie sinkt durch Schaden, wenn man den Jäger sieht und durch Schreck-Fähigkeiten
+(Roar, Jump Scare, Umdrehen bei Behind You, Gruselsound in der Nähe). Sie steigt nur langsam wieder, wenn man eine Weile mit anderen Opfern zusammen ist.
+
+Je niedriger die Sanity:
+- desto lauter und schneller hört man generell den Herzschlag
+- desto schneller sinkt die Ausdauer
+- desto länger laden die eigenen Fähigkeiten
+
+Bei **0 %**: Halluzinationen (verzerrtes Bild, Flüstern, falsche Jäger-Schatten), der Jäger sieht einen ab und zu lila durch Wände,
+Fußspuren bleiben doppelt so lange und schon normales Gehen erzeugt Pings im Geräusch-Radar.
+
+**Stamina** (nur während einer Runde): Sprinten verbraucht Ausdauer. Ist sie leer, kann man nur gehen, bis sie wieder zu 30 % gefüllt ist.
+
+Alle Werte stellt der Admin im Tab **Server** unter „Sanity“ und „Stamina“ ein.

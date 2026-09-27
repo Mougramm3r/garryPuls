@@ -1,6 +1,6 @@
--- Hunter Tools: menu, sound picker, role choice and round results
+-- PULSE: menu, sound picker, role choice and round results
 
-local HT = HunterTools
+local HT = Pulse
 local CV = HT.CV
 local C = HT.Colors
 local Get = HT.Get
@@ -176,15 +176,18 @@ end
 
 local function LoadoutSummary(str)
 	local lo = HT.ParseLoadout(str)
-	local slots, passive = {}, {}
+	local slots, passive, menu = {}, {}, {}
 	for i = 1, HT.SLOTS do
 		local id = lo.slots[i]
 		slots[#slots + 1] = i .. " " .. (id and HT.AbilityByID[id].name or "—")
 	end
 	for _, def in ipairs(HT.HunterAbilities) do
 		if lo.state[def.id] == "p" then passive[#passive + 1] = def.name end
+		if lo.state[def.id] == "m" then menu[#menu + 1] = def.name end
 	end
-	return table.concat(slots, "   ·   "), (#passive > 0 and table.concat(passive, ", ") or "none")
+	return table.concat(slots, "   ·   "),
+		(#passive > 0 and table.concat(passive, ", ") or "none"),
+		(#menu > 0 and table.concat(menu, ", ") or nil)
 end
 
 local KIND_TEXT = { active = "ACTIVE", toggle = "TOGGLE", passive = "PASSIVE" }
@@ -196,6 +199,7 @@ local function LoadoutEditor(parent, stateMap, onChange)
 	local function text(v)
 		if v == nil then return "Off" end
 		if v == "p" then return "Passive (always on)" end
+		if v == "m" then return "Menu only" end
 		return "Slot " .. v
 	end
 	local function refresh()
@@ -211,6 +215,7 @@ local function LoadoutEditor(parent, stateMap, onChange)
 		cb:SetWide(190)
 		cb:AddChoice("Off", "off")
 		for i = 1, HT.SLOTS do cb:AddChoice("Slot " .. i, i) end
+		cb:AddChoice("Menu only", "m")
 		if def.kind == "toggle" then cb:AddChoice("Passive (always on)", "p") end
 		cb:SetValue(text(stateMap[def.id]))
 		cb.OnSelect = function(_, _, _, data)
@@ -313,7 +318,7 @@ local function DefaultSections(target)
 				if m.id ~= 4 or CV.soundAllowGlobal:GetBool() then opts[#opts + 1] = { m.name, m.id } end
 			end
 			AddCombo(p, "Play sounds", opts, HT.SoundMode:GetInt(), function(id) HT.SoundMode:SetInt(id) end)
-			AddInfo(p, "Own sounds: put .wav/.mp3/.ogg files into addons/hunter_tools/sound/hunter_tools/ (marked with ★).")
+			AddInfo(p, "Own sounds: put .wav/.mp3/.ogg files into addons/pulse/sound/pulse/ (marked with ★).")
 		end }
 	end
 	return sections
@@ -323,27 +328,37 @@ end
 -- Tabs
 ------------------------------------------------------------------------
 
+local function AbilityRow(p, def, prefix)
+	local row = Row(p, prefix .. def.name, 28)
+	local b = row:Add("DButton")
+	b:Dock(RIGHT)
+	b:SetWide(90)
+	b:SetText(def.kind == "toggle" and "Toggle" or "Use")
+	b.DoClick = function()
+		HT.UseAbility(def.id)
+		if def.id ~= "sounds" and IsValid(menuFrame) then menuFrame:Remove() end
+	end
+	AddInfo(p, def.desc)
+end
+
 local function AbilityList(p, me)
 	local lo = HT.Loadout(me)
 	local any = false
 	for i = 1, HT.SLOTS do
 		local id = lo.slots[i]
-		local def = id and HT.AbilityByID[id]
-		if def then
+		if id then
 			any = true
-			local row = Row(p, "[" .. HT.KeyName(HT.Keys["slot" .. i]:GetInt()) .. "]  " .. def.name, 28)
-			local b = row:Add("DButton")
-			b:Dock(RIGHT)
-			b:SetWide(90)
-			b:SetText(def.kind == "toggle" and "Toggle" or "Use")
-			b.DoClick = function()
-				HT.UseAbility(def.id)
-				if def.id ~= "sounds" then menuFrame:Remove() end
-			end
-			AddInfo(p, def.desc)
+			AbilityRow(p, HT.AbilityByID[id], "[" .. HT.KeyName(HT.Keys["slot" .. i]:GetInt()) .. "]  ")
 		end
 	end
 	if not any then AddInfo(p, "No abilities on your slots.") end
+end
+
+-- abilities without a key, only usable from here
+local function MenuList(p, me)
+	local lo = HT.Loadout(me)
+	for _, id in ipairs(lo.menu) do AbilityRow(p, HT.AbilityByID[id], "[MENU]  ") end
+	if #lo.menu == 0 then AddInfo(p, "No menu abilities.") end
 end
 
 local function PassiveList(p, me)
@@ -390,6 +405,7 @@ Tabs.hunter = function(sub)
 		return { sections = {
 			{ "Current role", function(p) AddInfo(p, "Role: " .. me:GetNWString("HT_RoleName", "?"), C.text) end },
 			{ "Abilities", function(p) AbilityList(p, me) end },
+			{ "Menu abilities", function(p) MenuList(p, me) end },
 			{ "Passive", function(p) PassiveList(p, me) end },
 		} }
 	end
@@ -403,7 +419,7 @@ Tabs.hunter = function(sub)
 				local list = { { name = "Default", loadout = Get(me, "HT_DefLoadout"), default = true } }
 				for _, r in ipairs(HT.Roles) do list[#list + 1] = r end
 				for _, r in ipairs(list) do
-					local slots, passive = LoadoutSummary(r.loadout)
+					local slots, passive, menu = LoadoutSummary(r.loadout)
 					local row, lbl = Row(p, r.name, 30)
 					lbl:SetFont("HT_Tab")
 					local b = row:Add("DButton")
@@ -416,6 +432,7 @@ Tabs.hunter = function(sub)
 						Refresh()
 					end
 					AddInfo(p, slots)
+					if menu then AddInfo(p, "Menu: " .. menu, C.cold) end
 					AddInfo(p, "Passive: " .. passive, C.good)
 				end
 			end },
@@ -439,6 +456,9 @@ Tabs.hunter = function(sub)
 		end },
 		{ "Abilities", function(p)
 			if HT.IsHunter(me) then AbilityList(p, me) else AddInfo(p, "Become a hunter to use abilities.") end
+		end },
+		{ "Menu abilities", function(p)
+			if HT.IsHunter(me) then MenuList(p, me) else AddInfo(p, "Become a hunter to use abilities.") end
 		end },
 		{ "Passive", function(p) PassiveList(p, me) end },
 	} }
@@ -469,6 +489,16 @@ Tabs.victim = function()
 				end
 			end
 			if CV.victimHeart:GetBool() then AddInfo(p, "Heartbeat — you hear your heart beat faster when a hunter is near.", C.good) end
+		end },
+		{ "Sanity & stamina", function(p)
+			if CV.sanityEnabled:GetBool() then
+				AddInfo(p, "Sanity starts at 100%. Damage, seeing the hunter and scares lower it. Stay close to other victims for a while to slowly raise it again.", C.text)
+				AddInfo(p, "Low sanity: louder heartbeat, stamina drains faster, abilities take longer to recharge.")
+				AddInfo(p, "At 0%: hallucinations, the hunter sometimes sees you through walls, your footprints last longer and even walking makes noise.")
+			end
+			if CV.staminaEnabled:GetBool() then
+				AddInfo(p, "Stamina (during rounds): sprinting uses it up. When it is empty you can only walk until it has partly refilled.", C.text)
+			end
 		end },
 	} }
 end
@@ -555,6 +585,14 @@ Tabs.server = function()
 			ServerSlider(p, "Footprints: range", CV.tracksRadius)
 			ServerSlider(p, "Footprints: visible (s)", CV.tracksTime)
 			ServerSlider(p, "Heartbeat sensor: range", CV.heartRange)
+			ServerSlider(p, "Stalk: duration (s)", CV.stalkTime)
+			ServerSlider(p, "Stalk: cooldown (s)", CV.stalkCooldown)
+			ServerSlider(p, "Behind You: max distance", CV.behindRange)
+			ServerSlider(p, "Behind You: max time behind (s)", CV.behindTime)
+			ServerSlider(p, "Behind You: cooldown (s)", CV.behindCooldown)
+			ServerSlider(p, "Jump scare: radius", CV.jumpRadius)
+			ServerSlider(p, "Jump scare: face shown (s)", CV.jumpTime, 1)
+			ServerSlider(p, "Jump scare: cooldown (s)", CV.jumpCooldown)
 			AddInfo(p, "Which abilities a hunter has is set per role in Game > Role editor.")
 		end },
 		{ "Victim abilities", function(p)
@@ -573,6 +611,20 @@ Tabs.server = function()
 			ServerSlider(p, "Adrenaline: cooldown (s)", CV.adrenalineCooldown)
 			ServerCheck(p, "Hiding bonus", CV.allowHide)
 			ServerSlider(p, "Hiding: crouch still for (s)", CV.hideTime)
+		end },
+		{ "Sanity", function(p)
+			ServerCheck(p, "Victims have sanity", CV.sanityEnabled)
+			ServerSlider(p, "Lost per point of damage", CV.sanityDamage, 1)
+			ServerSlider(p, "Lost per second seeing a hunter", CV.sanitySee, 1)
+			ServerSlider(p, "Scare abilities multiplier", CV.sanityScare, 1)
+			ServerSlider(p, "Regained per second near others", CV.sanityRegen, 1)
+			ServerSlider(p, "Seconds together before it rises", CV.sanityGroupTime)
+			AddInfo(p, "Scares: Roar -10, Jump scare -25, turning around at Behind You -20, scary sound nearby -5 (times the multiplier).")
+		end },
+		{ "Stamina", function(p)
+			ServerCheck(p, "Victims have stamina during rounds", CV.staminaEnabled)
+			ServerSlider(p, "Seconds of sprint when full", CV.staminaSprint)
+			ServerSlider(p, "Seconds to refill completely", CV.staminaRegen)
 		end },
 		{ "Victim heartbeat", function(p)
 			ServerCheck(p, "Victims hear a heartbeat when a hunter is near", CV.victimHeart)
@@ -715,7 +767,7 @@ function HT.OpenMenu(tab, sub)
 	if IsValid(menuFrame) then menuFrame:Remove() menuFrame = nil return end
 	HT.RequestSoundList()
 
-	local f = NewFrame("Hunter Tools", 860, 620)
+	local f = NewFrame("PULSE – The Chase of the End", 860, 620)
 	menuFrame = f
 
 	local bar = f:Add("DPanel")
@@ -872,9 +924,10 @@ net.Receive("HT_ChooseRole", function()
 		f:Remove()
 	end
 	for _, r in ipairs(HT.Roles) do
-		local slots, passive = LoadoutSummary(r.loadout)
+		local slots, passive, menu = LoadoutSummary(r.loadout)
 		AddHeader(scroll, r.name)
 		AddInfo(scroll, slots)
+		if menu then AddInfo(scroll, "Menu: " .. menu, C.cold) end
 		AddInfo(scroll, "Passive: " .. passive, C.good)
 		AddButton(scroll, "Play as " .. r.name, function() pick(r.name) end)
 	end

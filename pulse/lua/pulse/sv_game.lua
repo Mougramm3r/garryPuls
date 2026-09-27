@@ -1,6 +1,6 @@
--- Hunter Tools: game mode (rounds), roles and saved settings
+-- PULSE: game mode (rounds), roles and saved settings
 
-local HT = HunterTools
+local HT = Pulse
 
 for _, name in ipairs({
 	"HT_Data", "HT_GameSet", "HT_RoleSave", "HT_RoleDelete", "HT_RoundCmd",
@@ -10,10 +10,10 @@ for _, name in ipairs({
 end
 
 ------------------------------------------------------------------------
--- Saving roles and game settings (data/hunter_tools/)
+-- Saving roles and game settings (data/pulse/)
 ------------------------------------------------------------------------
 
-local DIR = "hunter_tools"
+local DIR = "pulse"
 local ROLES_FILE = DIR .. "/roles.json"
 local GAME_FILE = DIR .. "/game.json"
 
@@ -103,12 +103,12 @@ net.Receive("HT_RoleSave", function(_, ply)
 
 	local oldName = CleanRoleName(data.old)
 	local name = CleanRoleName(data.name)
-	if name == "" then ply:ChatPrint("[Hunter] The role needs a name.") return end
+	if name == "" then ply:ChatPrint("[PULSE] The role needs a name.") return end
 
 	local existing = HT.FindRole(name)
 	local role = HT.FindRole(oldName)
 	if existing and existing ~= role then
-		ply:ChatPrint("[Hunter] A role called " .. name .. " already exists.")
+		ply:ChatPrint("[PULSE] A role called " .. name .. " already exists.")
 		return
 	end
 
@@ -122,20 +122,20 @@ net.Receive("HT_RoleSave", function(_, ply)
 			if p.HT_RoundRole == oldName then p.HT_RoundRole = name end
 		end
 	else
-		if #HT.Roles >= 20 then ply:ChatPrint("[Hunter] You can have at most 20 roles.") return end
+		if #HT.Roles >= 20 then ply:ChatPrint("[PULSE] You can have at most 20 roles.") return end
 		HT.Roles[#HT.Roles + 1] = { name = name, loadout = loadout }
 	end
 
 	Save()
 	SendData()
 	RefreshAll()
-	ply:ChatPrint("[Hunter] Role " .. name .. " saved.")
+	ply:ChatPrint("[PULSE] Role " .. name .. " saved.")
 end)
 
 net.Receive("HT_RoleDelete", function(_, ply)
 	if not HT.IsManager(ply) then return end
 	local name = CleanRoleName(net.ReadString())
-	if #HT.Roles <= 1 then ply:ChatPrint("[Hunter] At least one role must stay.") return end
+	if #HT.Roles <= 1 then ply:ChatPrint("[PULSE] At least one role must stay.") return end
 	for i, r in ipairs(HT.Roles) do
 		if r.name == name then
 			table.remove(HT.Roles, i)
@@ -187,7 +187,7 @@ local function AssignRole(ply, name)
 	round.players[ply].roleName = role.name
 	ply.HT_RoundRole = role.name
 	HT.RefreshLoadout(ply)
-	ply:ChatPrint("[Hunter] Your role: " .. role.name)
+	ply:ChatPrint("[PULSE] Your role: " .. role.name)
 end
 
 local function AssignMissingRoles()
@@ -211,7 +211,7 @@ local function StartHunt()
 	SetPhase("hunt", HT.Game.roundTime)
 	for _, ply in ipairs(Participants(true)) do ply:Freeze(false) end
 	PrintMessage(HUD_PRINTCENTER, "The hunt begins!")
-	PrintMessage(HUD_PRINTTALK, "[Hunter] The hunt begins! Survive for " .. HT.FormatTime(HT.Game.roundTime) .. ".")
+	PrintMessage(HUD_PRINTTALK, "[PULSE] The hunt begins! Survive for " .. HT.FormatTime(HT.Game.roundTime) .. ".")
 end
 
 local function EndRound(winner, reason)
@@ -270,7 +270,7 @@ local function StartRound(admin)
 	if round then return end
 	local plys = player.GetAll()
 	if #plys < 2 then
-		if IsValid(admin) then admin:ChatPrint("[Hunter] You need at least 2 players to start a round.") end
+		if IsValid(admin) then admin:ChatPrint("[PULSE] You need at least 2 players to start a round.") end
 		return
 	end
 
@@ -322,7 +322,7 @@ local function StartRound(admin)
 		net.Send(hunters)
 	end
 
-	PrintMessage(HUD_PRINTTALK, "[Hunter] Round started. " .. (#names > 1 and "Hunters: " or "Hunter: ") .. table.concat(names, ", "))
+	PrintMessage(HUD_PRINTTALK, "[PULSE] Round started. " .. (#names > 1 and "Hunters: " or "Hunter: ") .. table.concat(names, ", "))
 	if prep > 0 then
 		timer.Simple(0.3, function()
 			for _, h in ipairs(hunters) do if IsValid(h) then h:Freeze(true) end end

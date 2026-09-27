@@ -1,58 +1,80 @@
--- Hunter Tools: shared definitions (server + client)
+-- PULSE: shared definitions (server + client)
 
-HunterTools = HunterTools or {}
-local HT = HunterTools
+Pulse = Pulse or {}
+local HT = Pulse
 
 local SV_FLAGS = { FCVAR_ARCHIVE, FCVAR_REPLICATED, FCVAR_NOTIFY }
 
 -- Values for every ability. Which abilities a hunter has is decided by roles (see Game tab).
 HT.CV = {
-	aimMaxStrength     = CreateConVar("ht_aim_max_strength", "0.8", SV_FLAGS, "Aim assist: max strength (0-1)", 0, 1),
-	aimMaxFov          = CreateConVar("ht_aim_max_fov", "20", SV_FLAGS, "Aim assist: max angle in degrees", 1, 45),
-	chaserMaxRadius    = CreateConVar("ht_chaser_max_radius", "3000", SV_FLAGS, "Chaser pulse: max radius in units", 100, 20000),
-	chaserMaxTime      = CreateConVar("ht_chaser_max_duration", "10", SV_FLAGS, "Chaser pulse: max duration in seconds", 1, 60),
-	chaserCooldown     = CreateConVar("ht_chaser_cooldown", "15", SV_FLAGS, "Chaser pulse: cooldown in seconds", 0, 600),
+	aimMaxStrength     = CreateConVar("pulse_aim_max_strength", "0.8", SV_FLAGS, "Aim assist: max strength (0-1)", 0, 1),
+	aimMaxFov          = CreateConVar("pulse_aim_max_fov", "20", SV_FLAGS, "Aim assist: max angle in degrees", 1, 45),
+	chaserMaxRadius    = CreateConVar("pulse_chaser_max_radius", "3000", SV_FLAGS, "Chaser pulse: max radius in units", 100, 20000),
+	chaserMaxTime      = CreateConVar("pulse_chaser_max_duration", "10", SV_FLAGS, "Chaser pulse: max duration in seconds", 1, 60),
+	chaserCooldown     = CreateConVar("pulse_chaser_cooldown", "15", SV_FLAGS, "Chaser pulse: cooldown in seconds", 0, 600),
 
-	roarRadius         = CreateConVar("ht_roar_radius", "600", SV_FLAGS, "Roar: radius in units", 100, 3000),
-	roarSlow           = CreateConVar("ht_roar_slow", "0.5", SV_FLAGS, "Roar: victim speed (0.5 = half speed)", 0.1, 1),
-	roarDuration       = CreateConVar("ht_roar_duration", "3", SV_FLAGS, "Roar: slow duration in seconds", 0.5, 10),
-	roarCooldown       = CreateConVar("ht_roar_cooldown", "30", SV_FLAGS, "Roar: cooldown in seconds", 0, 600),
+	roarRadius         = CreateConVar("pulse_roar_radius", "600", SV_FLAGS, "Roar: radius in units", 100, 3000),
+	roarSlow           = CreateConVar("pulse_roar_slow", "0.5", SV_FLAGS, "Roar: victim speed (0.5 = half speed)", 0.1, 1),
+	roarDuration       = CreateConVar("pulse_roar_duration", "3", SV_FLAGS, "Roar: slow duration in seconds", 0.5, 10),
+	roarCooldown       = CreateConVar("pulse_roar_cooldown", "30", SV_FLAGS, "Roar: cooldown in seconds", 0, 600),
 
-	noiseRadius        = CreateConVar("ht_noise_radius", "2500", SV_FLAGS, "Noise radar: range in units", 200, 20000),
-	tracksRadius       = CreateConVar("ht_tracks_radius", "3000", SV_FLAGS, "Footprints: range in units", 200, 20000),
-	tracksTime         = CreateConVar("ht_tracks_time", "8", SV_FLAGS, "Footprints: visible for seconds", 1, 30),
-	heartRange         = CreateConVar("ht_heart_range", "1500", SV_FLAGS, "Heartbeat sensor: audible from this distance", 200, 5000),
+	noiseRadius        = CreateConVar("pulse_noise_radius", "2500", SV_FLAGS, "Noise radar: range in units", 200, 20000),
+	tracksRadius       = CreateConVar("pulse_tracks_radius", "3000", SV_FLAGS, "Footprints: range in units", 200, 20000),
+	tracksTime         = CreateConVar("pulse_tracks_time", "8", SV_FLAGS, "Footprints: visible for seconds", 1, 30),
+	heartRange         = CreateConVar("pulse_heart_range", "1500", SV_FLAGS, "Heartbeat sensor: audible from this distance", 200, 5000),
 
-	teleportRange      = CreateConVar("ht_teleport_range", "800", SV_FLAGS, "Teleport: max range in units", 100, 5000),
-	teleportCooldown   = CreateConVar("ht_teleport_cooldown", "45", SV_FLAGS, "Teleport: cooldown in seconds", 0, 600),
+	teleportRange      = CreateConVar("pulse_teleport_range", "800", SV_FLAGS, "Teleport: max range in units", 100, 5000),
+	teleportCooldown   = CreateConVar("pulse_teleport_cooldown", "45", SV_FLAGS, "Teleport: cooldown in seconds", 0, 600),
 
-	soundCooldown      = CreateConVar("ht_sound_cooldown", "10", SV_FLAGS, "Scary sounds: cooldown in seconds", 0, 300),
-	soundLevel         = CreateConVar("ht_sound_level", "85", SV_FLAGS, "Scary sounds: volume / reach (60 quiet - 140 very far)", 60, 140),
-	soundRange         = CreateConVar("ht_sound_range", "2000", SV_FLAGS, "Scary sounds: max distance for 'where I look'", 200, 10000),
-	soundAllowGlobal   = CreateConVar("ht_sound_allow_global", "1", SV_FLAGS, "Scary sounds: allow 'everywhere' mode", 0, 1),
+	soundCooldown      = CreateConVar("pulse_sound_cooldown", "10", SV_FLAGS, "Scary sounds: cooldown in seconds", 0, 300),
+	soundLevel         = CreateConVar("pulse_sound_level", "85", SV_FLAGS, "Scary sounds: volume / reach (60 quiet - 140 very far)", 60, 140),
+	soundRange         = CreateConVar("pulse_sound_range", "2000", SV_FLAGS, "Scary sounds: max distance for 'where I look'", 200, 10000),
+	soundAllowGlobal   = CreateConVar("pulse_sound_allow_global", "1", SV_FLAGS, "Scary sounds: allow 'everywhere' mode", 0, 1),
 
-	victimHeart        = CreateConVar("ht_victim_heart", "0", SV_FLAGS, "Victims hear a heartbeat when a hunter is near", 0, 1),
-	victimHeartRange   = CreateConVar("ht_victim_heart_range", "1000", SV_FLAGS, "Victim heartbeat: starts at this distance", 200, 5000),
+	victimHeart        = CreateConVar("pulse_victim_heart", "0", SV_FLAGS, "Victims hear a heartbeat when a hunter is near", 0, 1),
+	victimHeartRange   = CreateConVar("pulse_victim_heart_range", "1000", SV_FLAGS, "Victim heartbeat: starts at this distance", 200, 5000),
 
-	allowAdrenaline    = CreateConVar("ht_allow_adrenaline", "1", SV_FLAGS, "Victims: adrenaline after being hit", 0, 1),
-	adrenalineSpeed    = CreateConVar("ht_adrenaline_speed", "1.5", SV_FLAGS, "Adrenaline: speed multiplier", 1, 3),
-	adrenalineTime     = CreateConVar("ht_adrenaline_time", "3", SV_FLAGS, "Adrenaline: duration in seconds", 0.5, 10),
-	adrenalineCooldown = CreateConVar("ht_adrenaline_cooldown", "20", SV_FLAGS, "Adrenaline: cooldown in seconds", 0, 300),
+	allowAdrenaline    = CreateConVar("pulse_allow_adrenaline", "1", SV_FLAGS, "Victims: adrenaline after being hit", 0, 1),
+	adrenalineSpeed    = CreateConVar("pulse_adrenaline_speed", "1.5", SV_FLAGS, "Adrenaline: speed multiplier", 1, 3),
+	adrenalineTime     = CreateConVar("pulse_adrenaline_time", "3", SV_FLAGS, "Adrenaline: duration in seconds", 0.5, 10),
+	adrenalineCooldown = CreateConVar("pulse_adrenaline_cooldown", "20", SV_FLAGS, "Adrenaline: cooldown in seconds", 0, 300),
 
-	allowFlash         = CreateConVar("ht_allow_flash", "1", SV_FLAGS, "Victims: flashlight blind", 0, 1),
-	flashRange         = CreateConVar("ht_flash_range", "600", SV_FLAGS, "Flashlight blind: range in units", 100, 3000),
-	flashTime          = CreateConVar("ht_flash_time", "2.5", SV_FLAGS, "Flashlight blind: blind duration in seconds", 0.5, 10),
-	flashCooldown      = CreateConVar("ht_flash_cooldown", "40", SV_FLAGS, "Flashlight blind: cooldown in seconds", 0, 600),
+	allowFlash         = CreateConVar("pulse_allow_flash", "1", SV_FLAGS, "Victims: flashlight blind", 0, 1),
+	flashRange         = CreateConVar("pulse_flash_range", "600", SV_FLAGS, "Flashlight blind: range in units", 100, 3000),
+	flashTime          = CreateConVar("pulse_flash_time", "2.5", SV_FLAGS, "Flashlight blind: blind duration in seconds", 0.5, 10),
+	flashCooldown      = CreateConVar("pulse_flash_cooldown", "40", SV_FLAGS, "Flashlight blind: cooldown in seconds", 0, 600),
 
-	allowSilent        = CreateConVar("ht_allow_silent", "1", SV_FLAGS, "Victims: stay silent", 0, 1),
-	silentTime         = CreateConVar("ht_silent_time", "6", SV_FLAGS, "Stay silent: duration in seconds", 1, 30),
-	silentCooldown     = CreateConVar("ht_silent_cooldown", "45", SV_FLAGS, "Stay silent: cooldown in seconds", 0, 600),
+	allowSilent        = CreateConVar("pulse_allow_silent", "1", SV_FLAGS, "Victims: stay silent", 0, 1),
+	silentTime         = CreateConVar("pulse_silent_time", "6", SV_FLAGS, "Stay silent: duration in seconds", 1, 30),
+	silentCooldown     = CreateConVar("pulse_silent_cooldown", "45", SV_FLAGS, "Stay silent: cooldown in seconds", 0, 600),
 
-	allowDecoy         = CreateConVar("ht_allow_decoy", "1", SV_FLAGS, "Victims: decoy", 0, 1),
-	decoyCooldown      = CreateConVar("ht_decoy_cooldown", "25", SV_FLAGS, "Decoy: cooldown in seconds", 0, 600),
+	allowDecoy         = CreateConVar("pulse_allow_decoy", "1", SV_FLAGS, "Victims: decoy", 0, 1),
+	decoyCooldown      = CreateConVar("pulse_decoy_cooldown", "25", SV_FLAGS, "Decoy: cooldown in seconds", 0, 600),
 
-	allowHide          = CreateConVar("ht_allow_hide", "1", SV_FLAGS, "Victims: hiding bonus (crouch still)", 0, 1),
-	hideTime           = CreateConVar("ht_hide_time", "5", SV_FLAGS, "Hiding bonus: crouch still for seconds", 1, 30),
+	allowHide          = CreateConVar("pulse_allow_hide", "1", SV_FLAGS, "Victims: hiding bonus (crouch still)", 0, 1),
+	hideTime           = CreateConVar("pulse_hide_time", "5", SV_FLAGS, "Hiding bonus: crouch still for seconds", 1, 30),
+
+	stalkTime          = CreateConVar("pulse_stalk_time", "6", SV_FLAGS, "Stalk: watch the nearest victim for seconds", 1, 30),
+	stalkCooldown      = CreateConVar("pulse_stalk_cooldown", "40", SV_FLAGS, "Stalk: cooldown in seconds", 0, 600),
+
+	behindRange        = CreateConVar("pulse_behind_range", "3000", SV_FLAGS, "Behind You: max distance to the victim", 200, 20000),
+	behindTime         = CreateConVar("pulse_behind_time", "10", SV_FLAGS, "Behind You: max seconds behind the victim", 2, 30),
+	behindCooldown     = CreateConVar("pulse_behind_cooldown", "60", SV_FLAGS, "Behind You: cooldown in seconds", 0, 600),
+
+	jumpRadius         = CreateConVar("pulse_jump_radius", "700", SV_FLAGS, "Jump scare: radius in units", 100, 5000),
+	jumpTime           = CreateConVar("pulse_jump_time", "0.8", SV_FLAGS, "Jump scare: how long the face is shown", 0.2, 3),
+	jumpCooldown       = CreateConVar("pulse_jump_cooldown", "60", SV_FLAGS, "Jump scare: cooldown in seconds", 0, 600),
+
+	sanityEnabled      = CreateConVar("pulse_sanity", "1", SV_FLAGS, "Victims have sanity", 0, 1),
+	sanityDamage       = CreateConVar("pulse_sanity_damage", "0.5", SV_FLAGS, "Sanity lost per point of damage", 0, 5),
+	sanitySee          = CreateConVar("pulse_sanity_see", "3", SV_FLAGS, "Sanity lost per second while seeing a hunter", 0, 30),
+	sanityScare        = CreateConVar("pulse_sanity_scare", "1", SV_FLAGS, "Multiplier for sanity lost by scare abilities", 0, 5),
+	sanityRegen        = CreateConVar("pulse_sanity_regen", "1.5", SV_FLAGS, "Sanity regained per second near other victims", 0, 20),
+	sanityGroupTime    = CreateConVar("pulse_sanity_group_time", "5", SV_FLAGS, "Seconds near another victim before sanity rises", 0, 60),
+
+	staminaEnabled     = CreateConVar("pulse_stamina", "1", SV_FLAGS, "Victims have stamina during rounds", 0, 1),
+	staminaSprint      = CreateConVar("pulse_stamina_sprint", "6", SV_FLAGS, "Stamina: seconds of sprint when full", 1, 60),
+	staminaRegen       = CreateConVar("pulse_stamina_regen", "8", SV_FLAGS, "Stamina: seconds to refill completely", 1, 60),
 }
 
 local CV = HT.CV
@@ -72,6 +94,9 @@ HT.HunterAbilities = {
 	{ id = "noise",    name = "Noise Radar",      kind = "toggle", desc = "Sprinting, jumping and shooting victims show up as pings." },
 	{ id = "tracks",   name = "Footprints",       kind = "toggle", desc = "Victims leave glowing footprints only you can see." },
 	{ id = "heart",    name = "Heartbeat Sensor", kind = "toggle", desc = "A heartbeat that gets faster the closer a victim is." },
+	{ id = "stalk",    name = "Stalk",            kind = "active", desc = "Watch the nearest victim for a few seconds. Your body stays frozen where it is." },
+	{ id = "behind",   name = "Behind You",       kind = "active", desc = "Appear right behind the nearest victim. They hear breathing. If they turn around, you vanish." },
+	{ id = "jump",     name = "Jump Scare",       kind = "active", desc = "Every victim nearby sees your face right in front of theirs." },
 }
 
 HT.VictimAbilities = {
@@ -99,13 +124,13 @@ end
 HT.SLOTS = 4
 
 ------------------------------------------------------------------------
--- Loadouts: "teleport=1;sounds=2;tracks=p"  (1-4 = slot, p = passive)
+-- Loadouts: "teleport=1;sounds=2;stalk=m;tracks=p"  (1-4 = slot, m = menu only, p = passive)
 ------------------------------------------------------------------------
 
 HT.DEFAULT_LOADOUT = "chaser=1;roar=2;teleport=3;sounds=4"
 
 function HT.ParseLoadout(str)
-	local lo = { slots = {}, state = {} }
+	local lo = { slots = {}, state = {}, menu = {} }
 	for id, v in string.gmatch(str or "", "([%w_]+)=(%w+)") do
 		local def = HT.AbilityByID[id]
 		if def and def.hunter and not lo.state[id] then
@@ -115,8 +140,13 @@ function HT.ParseLoadout(str)
 				lo.state[id] = n
 			elseif v == "p" and def.kind == "toggle" then
 				lo.state[id] = "p"
+			elseif v == "m" then
+				lo.state[id] = "m"
 			end
 		end
+	end
+	for _, def in ipairs(HT.HunterAbilities) do
+		if lo.state[def.id] == "m" then lo.menu[#lo.menu + 1] = def.id end
 	end
 	return lo
 end
@@ -143,14 +173,14 @@ function HT.Loadout(ply)
 end
 
 ------------------------------------------------------------------------
--- Roles and game settings (synced from the server, saved in data/hunter_tools/)
+-- Roles and game settings (synced from the server, saved in data/pulse/)
 ------------------------------------------------------------------------
 
 HT.DefaultRoles = {
-	{ name = "Stalker", loadout = "teleport=1;sounds=2;roar=3;tracks=p;heart=p" },
-	{ name = "Tracker", loadout = "chaser=1;roar=2;sounds=3;noise=p;tracks=p" },
-	{ name = "Brute",   loadout = "roar=1;teleport=2;aim=3;heart=p" },
-	{ name = "Seer",    loadout = "radar=1;chaser=2;sounds=3;heart=p" },
+	{ name = "Stalker", loadout = "behind=1;sounds=2;teleport=3;roar=4;stalk=m;tracks=p;heart=p" },
+	{ name = "Tracker", loadout = "chaser=1;roar=2;sounds=3;stalk=4;noise=p;tracks=p" },
+	{ name = "Brute",   loadout = "roar=1;teleport=2;jump=3;aim=4;heart=p" },
+	{ name = "Seer",    loadout = "radar=1;chaser=2;jump=3;sounds=4;stalk=m;heart=p" },
 }
 
 HT.GameDefaults = {
@@ -254,7 +284,7 @@ function HT.HasAbility(ply, id)
 	return HT.IsHunter(ply) and HT.Loadout(ply).state[id] ~= nil
 end
 
--- Toggle abilities: passive = always on, on a slot = switched with the slot key
+-- Toggle abilities: passive = always on, on a slot or in the menu = switched on/off
 function HT.IsOn(ply, id)
 	if not HT.HunterCanAct(ply) then return false end
 	local st = HT.Loadout(ply).state[id]
@@ -263,11 +293,26 @@ function HT.IsOn(ply, id)
 	return false
 end
 
+-- Can be triggered (on a slot or menu only)
+function HT.CanTrigger(ply, id)
+	local st = HT.Loadout(ply).state[id]
+	return isnumber(st) or st == "m"
+end
+
 function HT.IsActive(ply, id) return ply:GetNWFloat("HT_Active_" .. id, 0) > CurTime() end
 function HT.ActiveLeft(ply, id) return math.max(0, ply:GetNWFloat("HT_Active_" .. id, 0) - CurTime()) end
 function HT.ReadyIn(ply, id) return math.max(0, ply:GetNWFloat("HT_Ready_" .. id, 0) - CurTime()) end
 
 function HT.IsSilent(ply) return HT.IsActive(ply, "silent") end
+
+-- Sanity (victims): 100 = calm, 0 = insane. Returns 0..1 how scared someone is.
+function HT.Sanity(ply)
+	if not CV.sanityEnabled:GetBool() then return 100 end
+	return ply:GetNWFloat("HT_Sanity", 100)
+end
+function HT.Fear(ply) return 1 - HT.Sanity(ply) / 100 end
+function HT.IsInsane(ply) return CV.sanityEnabled:GetBool() and HT.Sanity(ply) <= 0.5 end
+function HT.IsRevealed(ply) return ply:GetNWFloat("HT_RevealUntil", 0) > CurTime() end
 function HT.IsHidden(ply) return CV.allowHide:GetBool() and ply:GetNWBool("HT_Hidden", false) end
 
 function HT.FormatTime(sec)
@@ -277,6 +322,20 @@ end
 
 -- Speed: roar slows, adrenaline speeds up (in SetupMove so it is predicted)
 hook.Add("SetupMove", "HT_Speed", function(ply, mv)
+	-- out of stamina: walking speed only
+	if ply:GetNWBool("HT_Exhausted", false) then
+		local walk = ply:GetWalkSpeed()
+		mv:SetMaxClientSpeed(math.min(mv:GetMaxClientSpeed(), walk))
+		mv:SetMaxSpeed(math.min(mv:GetMaxSpeed(), walk))
+	end
+	-- frozen while stalking or standing behind a victim
+	if HT.IsActive(ply, "stalk") or HT.IsActive(ply, "behind") then
+		mv:SetMaxClientSpeed(0)
+		mv:SetMaxSpeed(0)
+		mv:SetVelocity(vector_origin)
+		return
+	end
+
 	local now, f = CurTime(), 1
 	if ply:GetNWFloat("HT_SlowUntil", 0) > now then f = f * ply:GetNWFloat("HT_SlowFactor", 1) end
 	if ply:GetNWFloat("HT_BoostUntil", 0) > now then f = f * ply:GetNWFloat("HT_BoostFactor", 1) end

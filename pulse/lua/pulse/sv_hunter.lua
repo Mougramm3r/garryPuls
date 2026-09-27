@@ -1,12 +1,13 @@
--- Hunter Tools: server side of all abilities
+-- PULSE: server side of all abilities
 -- The server decides who is a hunter. Only hunters get victim positions sent to them.
 
-local HT = HunterTools
+local HT = Pulse
 local CV = HT.CV
 
 for _, name in ipairs({
 	"HT_Set", "HT_Ability", "HT_AdminSetHunter", "HT_AdminSetCVar",
 	"HT_Roared", "HT_Ping", "HT_Tracks", "HT_Heart", "HT_Blind",
+	"HT_Jumpscare", "HT_ForceHeart",
 	"HT_SoundList", "HT_SoundPlay", "HT_SoundGlobal",
 }) do
 	util.AddNetworkString(name)
@@ -52,6 +53,36 @@ function HT.ResetAbilityState(ply)
 		ply:SetNWFloat(key, 0)
 	end
 	ply:SetNWBool("HT_Hidden", false)
+	ply:SetNWFloat("HT_Sanity", 100)
+	ply:SetNWFloat("HT_Stamina", 100)
+	ply:SetNWBool("HT_Exhausted", false)
+	ply:SetNWFloat("HT_RevealUntil", 0)
+	ply.HT_BehindVictim = nil
+end
+
+-- Scare abilities and scary things lower a victim's sanity
+function HT.Scare(ply, amount)
+	if not CV.sanityEnabled:GetBool() or not HT.IsVictim(ply) then return end
+	ply:SetNWFloat("HT_Sanity", math.Clamp(HT.Sanity(ply) - amount * CV.sanityScare:GetFloat(), 0, 100))
+end
+
+local function ChangeSanity(ply, delta)
+	if not CV.sanityEnabled:GetBool() then return end
+	local old = HT.Sanity(ply)
+	local new = math.Clamp(old + delta, 0, 100)
+	if math.abs(new - old) > 0.01 then ply:SetNWFloat("HT_Sanity", new) end
+end
+
+local function NearestVictim(hunter, maxDist)
+	local best, bestDist = nil, maxDist and maxDist ^ 2 or math.huge
+	local origin = hunter:GetPos()
+	for _, ply in ipairs(player.GetAll()) do
+		if HT.IsTarget(hunter, ply) then
+			local d = origin:DistToSqr(ply:GetPos())
+			if d < bestDist then best, bestDist = ply, d end
+		end
+	end
+	return best
 end
 
 function HT.SetHunter(ply, state, quiet)
@@ -60,7 +91,7 @@ function HT.SetHunter(ply, state, quiet)
 	HT.ResetAbilityState(ply)
 	HT.RefreshLoadout(ply)
 	if not quiet then
-		PrintMessage(HUD_PRINTTALK, "[Hunter] " .. ply:Nick() .. (state and " is now a hunter." or " is no longer a hunter."))
+		PrintMessage(HUD_PRINTTALK, "[PULSE] " .. ply:Nick() .. (state and " is now a hunter." or " is no longer a hunter."))
 	end
 end
 
@@ -68,7 +99,7 @@ hook.Add("PlayerInitialSpawn", "HT_Join", function(ply)
 	timer.Simple(5, function()
 		if not IsValid(ply) then return end
 		HT.RefreshLoadout(ply)
-		ply:ChatPrint("[Hunter] Hunter Tools loaded. Press F5 to open the menu.")
+		ply:ChatPrint("[PULSE] PULSE loaded. Press F5 to open the menu.")
 	end)
 end)
 
@@ -182,6 +213,7 @@ local Actions = {
 			if HT.IsTarget(ply, target) and origin:DistToSqr(target:GetPos()) <= radiusSqr then
 				target:SetNWFloat("HT_SlowFactor", CV.roarSlow:GetFloat())
 				target:SetNWFloat("HT_SlowUntil", now + duration)
+				HT.Scare(target, 10)
 				victims[#victims + 1] = target
 			end
 		end
@@ -197,7 +229,7 @@ local Actions = {
 	teleport = function(ply)
 		local spot = FindTeleportSpot(ply)
 		if not spot then
-			ply:ChatPrint("[Hunter] No room to teleport there.")
+			ply:ChatPrint("[PULSE] No room to teleport there.")
 			return
 		end
 		ply:EmitSound(TELEPORT_SOUND, 75, 70)
@@ -237,9 +269,9 @@ local Actions = {
 			net.Start("HT_Blind")
 			net.WriteFloat(CV.flashTime:GetFloat())
 			net.Send(blinded)
-			ply:ChatPrint("[Hunter] Hunter blinded!")
+			ply:ChatPrint("[PULSE] Hunter blinded!")
 		else
-			ply:ChatPrint("[Hunter] Missed. Light the hunter up while he is looking at you.")
+			ply:ChatPrint("[PULSE] Missed. Light the hunter up while he is looking at you.")
 		end
 		return CV.flashCooldown:GetFloat()
 	end,
@@ -273,7 +305,119 @@ local Actions = {
 		SafeRemoveEntityDelayed(ent, 8)
 		return CV.decoyCooldown:GetFloat()
 	end,
+
+	-- Watch the nearest victim; the body stays frozen (see SetupMove)
+	stalk = function(ply)
+		local victim = NearestVictim(ply)
+		if not victim then ply:ChatPrint("[PULSE] No victim to stalk.") return end
+		ply:SetNWEntity("HT_StalkTarget", victim)
+		local duration = CV.stalkTime:GetFloat()
+		return duration + CV.stalkCooldown:GetFloat(), duration
+	end,
+
+	-- Appear right behind the nearest victim
+	behind = function(ply)
+		local victim = NearestVictim(ply, CV.behindRange:GetFloat())
+		if not victim then ply:ChatPrint("[PULSE] No victim in range.") return end
+
+		local fwd = victim:GetAimVector() -- where the victim looks; we stand behind them
+		fwd.z = 0
+		fwd:Normalize()
+		local mins, maxs = ply:GetHull()
+		local spot
+		for _, d in ipairs({ 40, 55, 70, 32 }) do
+			local pos = victim:GetPos() - fwd * d
+			local free = util.TraceHull({ start = pos + Vector(0, 0, 2), endpos = pos + Vector(0, 0, 2),
+				mins = mins, maxs = maxs, filter = { ply, victim }, mask = MASK_PLAYERSOLID })
+			local sight = util.TraceLine({ start = victim:EyePos(), endpos = pos + Vector(0, 0, 50),
+				filter = { ply, victim }, mask = MASK_SOLID_BRUSHONLY })
+			if not free.Hit and not sight.Hit then spot = pos break end
+		end
+		if not spot then ply:ChatPrint("[PULSE] No room behind the victim.") return end
+
+		ply.HT_BehindReturn = { pos = ply:GetPos(), ang = ply:EyeAngles() }
+		ply.HT_BehindVictim = victim
+		ply.HT_BehindBreath = 0
+		ply:SetPos(spot)
+		ply:SetEyeAngles(fwd:Angle())
+		ply:SetVelocity(-ply:GetVelocity())
+
+		local duration = CV.behindTime:GetFloat()
+		net.Start("HT_ForceHeart")
+		net.WriteFloat(duration)
+		net.Send(victim)
+		return duration + CV.behindCooldown:GetFloat(), duration
+	end,
+
+	-- Every victim nearby sees the hunter's face right in front of them
+	jump = function(ply)
+		local victims = {}
+		local radiusSqr = CV.jumpRadius:GetFloat() ^ 2
+		for _, target in ipairs(player.GetAll()) do
+			if HT.IsTarget(ply, target) and ply:GetPos():DistToSqr(target:GetPos()) <= radiusSqr then
+				victims[#victims + 1] = target
+				HT.Scare(target, 25)
+			end
+		end
+		if #victims == 0 then ply:ChatPrint("[PULSE] No victim close enough.") return end
+
+		net.Start("HT_Jumpscare")
+		net.WriteString(ply:GetModel())
+		net.WriteFloat(CV.jumpTime:GetFloat())
+		net.Send(victims)
+		ply:ChatPrint("[PULSE] Scared " .. #victims .. (#victims == 1 and " victim." or " victims."))
+		return CV.jumpCooldown:GetFloat()
+	end,
 }
+
+-- Brings the hunter back from "Behind You"
+local function ReturnFromBehind(ply)
+	local ret = ply.HT_BehindReturn
+	ply.HT_BehindVictim = nil
+	ply.HT_BehindReturn = nil
+	ply:SetNWFloat("HT_Active_behind", 0)
+	if ret and IsValid(ply) and ply:Alive() then
+		ply:SetPos(ret.pos)
+		ply:SetEyeAngles(ret.ang)
+		ply:ScreenFade(SCREENFADE.IN, color_black, 0.5, 0)
+	end
+end
+
+local BREATH_SOUND = "npc/stalker/breathing3.wav"
+local VANISH_SOUND = "npc/stalker/go_alert2a.wav"
+local TURN_CONE = math.cos(math.rad(55))
+
+-- While behind a victim: breathe, vanish if they turn around, return if they walk away
+timer.Create("HT_BehindTick", 0.1, 0, function()
+	local now = CurTime()
+	for _, ply in ipairs(player.GetAll()) do
+		local victim = ply.HT_BehindVictim
+		if victim then
+			if not HT.IsActive(ply, "behind") or not HT.IsHunter(ply) or not IsValid(victim) or not HT.IsVictim(victim) then
+				ReturnFromBehind(ply)
+			elseif victim:GetPos():DistToSqr(ply:GetPos()) > 250 ^ 2 then
+				ReturnFromBehind(ply) -- walked away: nothing happens
+			else
+				local dir = ply:EyePos() - victim:EyePos()
+				dir:Normalize()
+				if victim:GetAimVector():Dot(dir) > TURN_CONE then
+					sound.Play(VANISH_SOUND, ply:EyePos(), 55, 60, 0.5)
+					HT.Scare(victim, 20)
+					ReturnFromBehind(ply)
+				elseif now > (ply.HT_BehindBreath or 0) then
+					ply.HT_BehindBreath = now + 2.5
+					sound.Play(BREATH_SOUND, ply:EyePos(), 65, 100, 0.8)
+				end
+			end
+		end
+	end
+end)
+
+-- Frozen hunters (stalk, behind you) can't hurt anyone
+hook.Add("EntityTakeDamage", "HT_FrozenHunter", function(_, dmg)
+	local attacker = dmg:GetAttacker()
+	if HT.IsHunter(attacker) and (HT.IsActive(attacker, "stalk") or HT.IsActive(attacker, "behind")) then return true end
+end)
 
 net.Receive("HT_Ability", function(_, ply)
 	local id = net.ReadString()
@@ -281,9 +425,8 @@ net.Receive("HT_Ability", function(_, ply)
 	if not def then return end
 
 	if def.hunter then
-		if not HT.HunterCanAct(ply) then return end
-		local st = HT.Loadout(ply).state[id]
-		if type(st) ~= "number" then return end -- must be on a slot
+		if not HT.HunterCanAct(ply) or not HT.CanTrigger(ply, id) then return end
+		if HT.IsActive(ply, "stalk") or HT.IsActive(ply, "behind") then return end
 
 		if def.kind == "toggle" then
 			ply:SetNWBool("HT_T_" .. id, not ply:GetNWBool("HT_T_" .. id, false))
@@ -301,6 +444,8 @@ net.Receive("HT_Ability", function(_, ply)
 
 	local cooldown, active = action(ply, now)
 	if not cooldown then return end
+	-- scared victims need longer to recover
+	if not def.hunter then cooldown = cooldown * (1 + HT.Fear(ply)) end
 	ply:SetNWFloat("HT_Ready_" .. id, now + cooldown)
 	ply:SetNWFloat("HT_Active_" .. id, active and now + active or 0)
 end)
@@ -317,7 +462,7 @@ local function HuntersWith(id)
 	return list
 end
 
-local NOISE_SPRINT, NOISE_JUMP, NOISE_SHOT = 1, 2, 3
+local NOISE_STEPS, NOISE_SPRINT, NOISE_JUMP, NOISE_SHOT = 0, 1, 2, 3
 local lastNoise = {}
 
 function SendPing(pos, kind)
@@ -370,9 +515,57 @@ timer.Create("HT_SensesTick", 0.25, 0, function()
 			end
 			if ply:GetNWBool("HT_Hidden", false) ~= hidden then ply:SetNWBool("HT_Hidden", hidden) end
 
-			-- Sprinting is loud, walking and sneaking are not
+			-- Sprinting is loud, walking and sneaking are not (insane victims are loud when walking too)
+			local insane = HT.IsInsane(ply)
 			if ply:OnGround() and ply:KeyDown(IN_SPEED) and not ply:Crouching() and vel:Length2DSqr() > 180 ^ 2 then
 				MakeNoise(ply, NOISE_SPRINT)
+			elseif insane and ply:OnGround() and not ply:Crouching() and vel:Length2DSqr() > 60 ^ 2 then
+				MakeNoise(ply, NOISE_STEPS)
+			end
+
+			-- Insane victims light up for the hunter now and then
+			local now = CurTime()
+			if insane then
+				ply.HT_NextReveal = ply.HT_NextReveal or now + 5
+				if now >= ply.HT_NextReveal then
+					ply.HT_NextReveal = now + math.random(18, 30)
+					ply:SetNWFloat("HT_RevealUntil", now + 2.5)
+				end
+			else
+				ply.HT_NextReveal = nil
+			end
+
+			-- Sanity: seeing a hunter lowers it, staying with others slowly raises it
+			if CV.sanityEnabled:GetBool() then
+				local eye, aim = ply:EyePos(), ply:GetAimVector()
+				for _, hunter in ipairs(player.GetAll()) do
+					if HT.IsHunter(hunter) and hunter:Alive() and HT.Phase() ~= "prep" then
+						local dir = hunter:EyePos() - eye
+						if dir:LengthSqr() < 1500 ^ 2 then
+							dir:Normalize()
+							if aim:Dot(dir) > 0.75 then
+								local tr = util.TraceLine({ start = eye, endpos = hunter:EyePos(), filter = { ply, hunter }, mask = MASK_VISIBLE })
+								if not tr.Hit then ChangeSanity(ply, -CV.sanitySee:GetFloat() * 0.25) break end
+							end
+						end
+					end
+				end
+
+				local together = false
+				for _, other in ipairs(player.GetAll()) do
+					if other ~= ply and HT.IsVictim(other) and other:GetPos():DistToSqr(ply:GetPos()) < 300 ^ 2 then
+						together = true
+						break
+					end
+				end
+				if together then
+					ply.HT_TogetherSince = ply.HT_TogetherSince or now
+					if now - ply.HT_TogetherSince >= CV.sanityGroupTime:GetFloat() then
+						ChangeSanity(ply, CV.sanityRegen:GetFloat() * 0.25)
+					end
+				else
+					ply.HT_TogetherSince = nil
+				end
 			end
 
 			-- A footprint every ~36 units, alternating left and right
@@ -382,7 +575,7 @@ timer.Create("HT_SensesTick", 0.25, 0, function()
 				if not last or last.pos:DistToSqr(pos) > 36 ^ 2 then
 					local left = not (last and last.left)
 					lastPrint[ply] = { pos = pos, left = left }
-					prints[#prints + 1] = { ply = ply, pos = pos, yaw = vel:Angle().y, left = left }
+					prints[#prints + 1] = { ply = ply, pos = pos, yaw = vel:Angle().y, left = left, long = insane }
 				end
 			end
 		end
@@ -405,6 +598,7 @@ timer.Create("HT_SensesTick", 0.25, 0, function()
 					net.WriteVector(mine[i].pos)
 					net.WriteFloat(mine[i].yaw)
 					net.WriteBool(mine[i].left)
+					net.WriteBool(mine[i].long)
 				end
 				net.Send(hunter)
 			end
@@ -458,6 +652,13 @@ end)
 hook.Add("SetupPlayerVisibility", "HT_PVS", function(ply)
 	if not HT.IsHunter(ply) then return end
 
+	local stalked = HT.IsActive(ply, "stalk") and ply:GetNWEntity("HT_StalkTarget")
+	if IsValid(stalked) then AddOriginToPVS(stalked:GetPos()) end
+
+	for _, target in ipairs(player.GetAll()) do
+		if HT.IsRevealed(target) and HT.IsTarget(ply, target) then AddOriginToPVS(target:GetPos()) end
+	end
+
 	local radar = HT.IsOn(ply, "radar")
 	local chaser = HT.IsActive(ply, "chaser")
 	if not radar and not chaser then return end
@@ -477,8 +678,12 @@ end)
 
 -- Adrenaline: a victim hit by the hunter is faster for a moment
 hook.Add("PostEntityTakeDamage", "HT_Adrenaline", function(ent, dmg, took)
-	if not took or not CV.allowAdrenaline:GetBool() then return end
-	if not IsValid(ent) or not ent:IsPlayer() or not HT.IsVictim(ent) then return end
+	if not took or not IsValid(ent) or not ent:IsPlayer() or not HT.IsVictim(ent) then return end
+
+	-- every hit costs sanity
+	ChangeSanity(ent, -dmg:GetDamage() * CV.sanityDamage:GetFloat())
+
+	if not CV.allowAdrenaline:GetBool() then return end
 	if not HT.IsHunter(dmg:GetAttacker()) then return end
 
 	local now = CurTime()
@@ -497,7 +702,7 @@ end)
 local SOUND_EXT = { wav = true, mp3 = true, ogg = true }
 local soundList = {}
 
--- Built-in HL2 sounds + own files from sound/hunter_tools/
+-- Built-in HL2 sounds + own files from sound/pulse/
 local function BuildSoundList()
 	soundList = {}
 	for _, entry in ipairs(HT.BuiltinSounds) do
@@ -506,12 +711,12 @@ local function BuildSoundList()
 		end
 	end
 
-	local files = file.Find("sound/hunter_tools/*", "GAME")
+	local files = file.Find("sound/pulse/*", "GAME")
 	table.sort(files)
 	for _, f in ipairs(files) do
 		local ext = string.lower(string.GetExtensionFromFilename(f) or "")
 		if SOUND_EXT[ext] then
-			local path = "hunter_tools/" .. f
+			local path = "pulse/" .. f
 			resource.AddFile("sound/" .. path) -- friends download the file when joining
 			local name = string.gsub(string.StripExtension(f), "_", " ")
 			soundList[#soundList + 1] = { name = "★ " .. name, path = path }
@@ -569,11 +774,14 @@ net.Receive("HT_SoundPlay", function(_, ply)
 	if ply:GetNWFloat("HT_Ready_sounds", 0) > now then return end
 
 	local level = CV.soundLevel:GetInt()
+	local soundPos
 	if mode == 1 then
+		soundPos = ply:EyePos()
 		sound.Play(entry.path, ply:EyePos(), level)
 	elseif mode == 2 then
 		local pos = SpotNearRandomVictim(ply)
-		if not pos then ply:ChatPrint("[Hunter] No victim around.") return end
+		if not pos then ply:ChatPrint("[PULSE] No victim around.") return end
+		soundPos = pos
 		sound.Play(entry.path, pos, level)
 	elseif mode == 3 then
 		local eye = ply:EyePos()
@@ -583,15 +791,57 @@ net.Receive("HT_SoundPlay", function(_, ply)
 			filter = ply,
 			mask = MASK_SOLID_BRUSHONLY,
 		})
-		sound.Play(entry.path, tr.HitPos + tr.HitNormal * 8, level)
+		soundPos = tr.HitPos + tr.HitNormal * 8
+		sound.Play(entry.path, soundPos, level)
 	elseif mode == 4 then
 		if not CV.soundAllowGlobal:GetBool() then return end
 		net.Start("HT_SoundGlobal")
 		net.WriteString(entry.path)
 		net.Broadcast()
+		for _, v in ipairs(player.GetAll()) do HT.Scare(v, 5) end
 	else
 		return
 	end
 
+	if soundPos then
+		for _, v in ipairs(player.GetAll()) do
+			if v:GetPos():DistToSqr(soundPos) < 800 ^ 2 then HT.Scare(v, 5) end
+		end
+	end
+
 	ply:SetNWFloat("HT_Ready_sounds", now + CV.soundCooldown:GetFloat())
+end)
+
+------------------------------------------------------------------------
+-- Stamina (victims, during rounds). Low sanity drains it faster.
+------------------------------------------------------------------------
+
+timer.Create("HT_Stamina", 0.1, 0, function()
+	local enabled = CV.staminaEnabled:GetBool() and HT.InRound()
+	for _, ply in ipairs(player.GetAll()) do
+		local exhausted = ply:GetNWBool("HT_Exhausted", false)
+		local st = ply:GetNWFloat("HT_Stamina", 100)
+
+		if not enabled or not HT.IsVictim(ply) then
+			if exhausted then ply:SetNWBool("HT_Exhausted", false) end
+			if st ~= 100 then ply:SetNWFloat("HT_Stamina", 100) end
+		else
+			local fear = HT.Fear(ply)
+			local fast = ply:GetVelocity():Length2D() > ply:GetWalkSpeed() + 20
+			local new
+			if ply:KeyDown(IN_SPEED) and ply:OnGround() and fast and not exhausted then
+				new = st - 100 / CV.staminaSprint:GetFloat() * 0.1 * (1 + fear)
+			else
+				new = st + 100 / CV.staminaRegen:GetFloat() * 0.1 * (1 - 0.5 * fear)
+			end
+			new = math.Clamp(new, 0, 100)
+
+			if new <= 0 and not exhausted then
+				ply:SetNWBool("HT_Exhausted", true)
+			elseif exhausted and new >= 30 then
+				ply:SetNWBool("HT_Exhausted", false)
+			end
+			if math.abs(new - st) > 0.4 or new == 0 or new == 100 then ply:SetNWFloat("HT_Stamina", new) end
+		end
+	end
 end)
