@@ -14,6 +14,11 @@ local keys = {
 	tracks   = CreateClientConVar("ht_key_tracks", tostring(KEY_PAD_6), true, false, "Taste: Fußspuren an/aus"),
 	heart    = CreateClientConVar("ht_key_heart", tostring(KEY_PAD_7), true, false, "Taste: Herzschlag an/aus"),
 	teleport = CreateClientConVar("ht_key_teleport", tostring(KEY_PAD_8), true, false, "Taste: Teleport"),
+
+	-- Opfer (eigene Tasten, da man nie gleichzeitig Jäger und Opfer ist)
+	vflash   = CreateClientConVar("ht_key_victim_flash", tostring(KEY_PAD_1), true, false, "Taste (Opfer): Taschenlampen-Blitz"),
+	vsilent  = CreateClientConVar("ht_key_victim_silent", tostring(KEY_PAD_2), true, false, "Taste (Opfer): Leise sein"),
+	vdecoy   = CreateClientConVar("ht_key_victim_decoy", tostring(KEY_PAD_3), true, false, "Taste (Opfer): Ablenkung werfen"),
 }
 
 local function Notify(msg)
@@ -125,6 +130,11 @@ local abilityInfo = {
 		sound = "ambient/levels/citadel/weapon_disintegrate2.wav" },
 	roar     = { allow = CV.allowRoar,     ready = "HT_RoarReady",     name = "Brüllen" },
 	teleport = { allow = CV.allowTeleport, ready = "HT_TeleportReady", name = "Teleport" },
+	flash    = { allow = CV.allowFlash,    ready = "HT_FlashReady",    name = "Taschenlampen-Blitz" },
+	silent   = { allow = CV.allowSilent,   ready = "HT_SilentReady",   name = "Leise sein",
+		sound = "npc/zombie/foot_slide1.wav" },
+	decoy    = { allow = CV.allowDecoy,    ready = "HT_DecoyReady",    name = "Ablenkung",
+		sound = "weapons/slam/throw.wav" },
 }
 
 local function UseAbility(name)
@@ -327,6 +337,40 @@ local function BuildHunterTab(tab)
 	AddBinder(tab, "Teleport", keys.teleport)
 end
 
+local function BuildVictimTab(tab)
+	if IsHunter() then
+		AddInfo(tab, "Du bist gerade der Jäger. Diese Fähigkeiten haben nur die Opfer.")
+	end
+
+	AddHeader(tab, "Aktive Fähigkeiten (per Taste)")
+	if CV.allowFlash:GetBool() then
+		AddButton(tab, "Taschenlampen-Blitz", function() UseAbility("flash") end)
+		AddInfo(tab, "Blendet den Jäger, wenn du ihn direkt anleuchtest und er dich gleichzeitig ansieht.")
+	end
+	if CV.allowSilent:GetBool() then
+		AddButton(tab, "Leise sein", function() UseAbility("silent") end)
+		AddInfo(tab, string.format("%.0f s unsichtbar für Geräusch-Radar, Fußspuren und Herzschlag des Jägers.", CV.silentTime:GetFloat()))
+	end
+	if CV.allowDecoy:GetBool() then
+		AddButton(tab, "Ablenkung werfen", function() UseAbility("decoy") end)
+		AddInfo(tab, "Wirft eine Dose. Wo sie aufschlägt, bekommt der Jäger einen falschen Ping.")
+	end
+
+	AddHeader(tab, "Passive Fähigkeiten (automatisch)")
+	if CV.allowAdrenaline:GetBool() then
+		AddInfo(tab, string.format("Adrenalin-Sprint: Trifft dich der Jäger, bist du %.1f s lang schneller.", CV.adrenalineTime:GetFloat()))
+	end
+	if CV.allowHide:GetBool() then
+		AddInfo(tab, string.format("Versteck-Bonus: Bleib %.0f s still in der Hocke, dann sieht dich der Jäger nicht mehr mit Radar oder Chaser-Puls.", CV.hideTime:GetFloat()))
+	end
+
+	AddHeader(tab, "Tasten (anklicken, dann neue Taste drücken)")
+	AddBinder(tab, "Menü öffnen", keys.menu)
+	AddBinder(tab, "Taschenlampen-Blitz", keys.vflash)
+	AddBinder(tab, "Leise sein", keys.vsilent)
+	AddBinder(tab, "Ablenkung werfen", keys.vdecoy)
+end
+
 -- Zahnrad: Jäger-Tab eines anderen Spielers
 local function OpenPlayerSettings(ply)
 	if IsValid(playerFrame) then playerFrame:Remove() end
@@ -399,7 +443,7 @@ local function ServerSlider(parent, label, cvar, decimals)
 end
 
 local function BuildServerTab(tab)
-	AddInfo(tab, "Diese Grenzen gelten für alle Jäger.")
+	AddInfo(tab, "Diese Einstellungen gelten für alle Spieler.")
 
 	AddHeader(tab, "Jäger")
 	local multi = ServerCheck(tab, "Mehrere Jäger gleichzeitig erlauben", CV.multiHunter)
@@ -438,19 +482,43 @@ local function BuildServerTab(tab)
 	ServerSlider(tab, "Fußspuren sichtbar (s)", CV.tracksTime, 0)
 	ServerSlider(tab, "Herzschlag hörbar ab", CV.heartRange, 0)
 
-	AddHeader(tab, "Opfer")
-	ServerCheck(tab, "Opfer hören Herzklopfen, wenn der Jäger nah ist", CV.victimHeart)
-	ServerSlider(tab, "Opfer-Herzklopfen ab Entfernung", CV.victimHeartRange, 0)
-
 	AddHeader(tab, "Teleport")
 	ServerSlider(tab, "Reichweite", CV.teleportRange, 0)
 	ServerSlider(tab, "Abklingzeit (s)", CV.teleportCooldown, 0)
+
+	AddHeader(tab, "OPFER: Herzklopfen")
+	ServerCheck(tab, "Opfer hören Herzklopfen, wenn der Jäger nah ist", CV.victimHeart)
+	ServerSlider(tab, "Opfer-Herzklopfen ab Entfernung", CV.victimHeartRange, 0)
+
+	AddHeader(tab, "OPFER: Adrenalin-Sprint")
+	ServerCheck(tab, "Erlauben", CV.allowAdrenaline)
+	ServerSlider(tab, "Tempo", CV.adrenalineSpeed, 2)
+	ServerSlider(tab, "Dauer (s)", CV.adrenalineTime, 1)
+	ServerSlider(tab, "Abklingzeit (s)", CV.adrenalineCooldown, 0)
+
+	AddHeader(tab, "OPFER: Taschenlampen-Blitz")
+	ServerCheck(tab, "Erlauben", CV.allowFlash)
+	ServerSlider(tab, "Reichweite", CV.flashRange, 0)
+	ServerSlider(tab, "Blend-Dauer (s)", CV.flashTime, 1)
+	ServerSlider(tab, "Abklingzeit (s)", CV.flashCooldown, 0)
+
+	AddHeader(tab, "OPFER: Leise sein")
+	ServerCheck(tab, "Erlauben", CV.allowSilent)
+	ServerSlider(tab, "Dauer (s)", CV.silentTime, 0)
+	ServerSlider(tab, "Abklingzeit (s)", CV.silentCooldown, 0)
+
+	AddHeader(tab, "OPFER: Ablenkung")
+	ServerCheck(tab, "Erlauben", CV.allowDecoy)
+	ServerSlider(tab, "Abklingzeit (s)", CV.decoyCooldown, 0)
+
+	AddHeader(tab, "OPFER: Versteck-Bonus")
+	ServerCheck(tab, "Erlauben", CV.allowHide)
+	ServerSlider(tab, "Still hocken für (s)", CV.hideTime, 0)
 end
 
 function OpenMenu(activeTab)
 	if IsValid(menuFrame) then menuFrame:Close() return end
 	local manager = HunterTools.IsManager(LP())
-	if not IsHunter() and not manager then Notify("Du bist nicht der Jäger.") return end
 
 	local f = vgui.Create("DFrame")
 	f:SetTitle("Hunter Tools")
@@ -469,7 +537,8 @@ function OpenMenu(activeTab)
 		sheet:AddSheet(name, scroll, icon)
 	end
 
-	Tab("Jäger", "icon16/eye.png", BuildHunterTab)
+	if IsHunter() or manager then Tab("Jäger", "icon16/eye.png", BuildHunterTab) end
+	Tab("Opfer", "icon16/user.png", BuildVictimTab)
 	if manager then
 		Tab("Spieler", "icon16/group.png", BuildPlayersTab)
 		Tab("Server", "icon16/cog.png", BuildServerTab)
@@ -501,8 +570,16 @@ hook.Add("Think", "HT_Keys", function()
 
 	if input.IsKeyTrapping() or gui.IsGameUIVisible() or gui.IsConsoleVisible() or me:IsTyping() then return end
 
-	if pressed.menu and (HunterTools.IsHunter(me) or HunterTools.IsManager(me)) then OpenMenu() end
-	if IsValid(menuFrame) or IsValid(playerFrame) or not HunterTools.IsHunter(me) then return end
+	if pressed.menu then OpenMenu() end
+	if IsValid(menuFrame) or IsValid(playerFrame) then return end
+
+	if not HunterTools.IsHunter(me) then
+		if not HunterTools.IsVictim(me) then return end
+		if pressed.vflash then UseAbility("flash") end
+		if pressed.vsilent then UseAbility("silent") end
+		if pressed.vdecoy then UseAbility("decoy") end
+		return
+	end
 
 	if pressed.aim then ToggleSetting("HT_AimOn", CV.allowAim, "Aim-Hilfe") end
 	if pressed.esp then ToggleSetting("HT_ESP", CV.allowESP, "Radar") end
@@ -589,6 +666,15 @@ end)
 -- Radar (Umriss durch Wände) + Chaser (Wärmebild im Radius)
 ------------------------------------------------------------------------
 
+-- Radar-Ziele: alle außer versteckten Opfern
+local function ESPTargets()
+	local list = {}
+	for _, ply in ipairs(Targets()) do
+		if not HunterTools.IsHidden(ply) then list[#list + 1] = ply end
+	end
+	return list
+end
+
 local function ESPOn(me)
 	return Get(me, "HT_ESP") and CV.allowESP:GetBool()
 end
@@ -598,7 +684,7 @@ local function ChaserTargets(me)
 	local radiusSqr = me:GetNWFloat("HT_ChaserRadius", 0) ^ 2
 	local origin, list = me:GetPos(), {}
 	for _, ply in ipairs(Targets()) do
-		if origin:DistToSqr(ply:GetPos()) <= radiusSqr then list[#list + 1] = ply end
+		if not HunterTools.IsHidden(ply) and origin:DistToSqr(ply:GetPos()) <= radiusSqr then list[#list + 1] = ply end
 	end
 	return list
 end
@@ -607,7 +693,7 @@ hook.Add("PreDrawHalos", "HT_Halos", function()
 	local me = LP()
 	if not me or not HunterTools.IsHunter(me) then return end
 	if ESPOn(me) then
-		halo.Add(Targets(), Color(255, 40, 40), 2, 2, 1, true, true)
+		halo.Add(ESPTargets(), Color(255, 40, 40), 2, 2, 1, true, true)
 	end
 end)
 
@@ -708,7 +794,7 @@ hook.Add("HUDPaint", "HT_HUD", function()
 	if aimOn then DrawAimCircle(me) end
 
 	if ESPOn(me) and Get(me, "HT_ESPNames") then
-		for _, ply in ipairs(Targets()) do
+		for _, ply in ipairs(ESPTargets()) do
 			local pos = (ply:GetPos() + Vector(0, 0, 80)):ToScreen()
 			if pos.visible then
 				local dist = math.Round(me:GetPos():Distance(ply:GetPos()) * UNIT_TO_M)
@@ -862,4 +948,65 @@ hook.Add("Think", "HT_Heartbeat", function()
 	timer.Simple(0.16, function()
 		if IsValid(me) then me:EmitSound(HEART_SOUND, 75, 52, vol * 0.8, CHAN_STATIC) end
 	end)
+end)
+
+------------------------------------------------------------------------
+-- Taschenlampen-Blitz: Jäger ist kurz geblendet
+------------------------------------------------------------------------
+
+local blindUntil, blindTime = 0, 1
+
+net.Receive("HT_Blind", function()
+	blindTime = net.ReadFloat()
+	blindUntil = CurTime() + blindTime
+	surface.PlaySound("ambient/energy/zap1.wav")
+end)
+
+hook.Add("HUDPaint", "HT_Blind", function()
+	local left = blindUntil - CurTime()
+	if left <= 0 then return end
+	-- erst voll weiß, in der zweiten Hälfte ausblenden
+	local a = math.Clamp(left / blindTime * 2, 0, 1) * 255
+	surface.SetDrawColor(255, 255, 255, a)
+	surface.DrawRect(0, 0, ScrW(), ScrH())
+end)
+
+------------------------------------------------------------------------
+-- Opfer-HUD
+------------------------------------------------------------------------
+
+hook.Add("HUDPaint", "HT_VictimHUD", function()
+	local me = LP()
+	if not me or not HunterTools.IsVictim(me) then return end
+
+	local now = CurTime()
+	local lines = {}
+
+	local function cooldownLine(name, ready, allow, activeUntil)
+		if not allow:GetBool() then return end
+		local r = me:GetNWFloat(ready, 0)
+		if activeUntil and me:GetNWFloat(activeUntil, 0) > now then
+			lines[#lines + 1] = { string.format("%s: AKTIV %.1fs", name, me:GetNWFloat(activeUntil, 0) - now), Color(120, 200, 255) }
+		elseif r > now then
+			lines[#lines + 1] = { string.format("%s: lädt %.0fs", name, r - now), Color(160, 160, 160) }
+		else
+			lines[#lines + 1] = { name .. ": bereit", Color(120, 255, 120) }
+		end
+	end
+
+	cooldownLine("Blitz", "HT_FlashReady", CV.allowFlash)
+	cooldownLine("Leise", "HT_SilentReady", CV.allowSilent, "HT_SilentUntil")
+	cooldownLine("Ablenkung", "HT_DecoyReady", CV.allowDecoy)
+
+	if me:GetNWFloat("HT_BoostUntil", 0) > now then
+		lines[#lines + 1] = { "ADRENALIN!", Color(255, 200, 60) }
+	end
+	if HunterTools.IsHidden(me) then
+		lines[#lines + 1] = { "VERSTECKT", Color(120, 255, 120) }
+	end
+
+	local y = ScrH() - 140 - #lines * 16
+	for i, l in ipairs(lines) do
+		draw.SimpleTextOutlined(l[1], "DermaDefaultBold", 20, y + (i - 1) * 16, l[2], TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP, 1, color_black)
+	end
 end)

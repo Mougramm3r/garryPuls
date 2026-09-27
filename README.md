@@ -36,6 +36,19 @@ Alles läuft über das Menü, du brauchst keine Konsolenbefehle. Alle Spieler se
 | Herzschlag | **Numpad 7** | Je näher das nächste Opfer, desto schneller und lauter der Herzschlag. Zeigt keine Richtung |
 | Teleport | **Numpad 8** | Teleportiert dorthin, wo du hinschaust (kurze Reichweite, lange Abklingzeit) |
 
+### Fähigkeiten der Opfer (Tab „Opfer“, für alle Spieler)
+
+| Fähigkeit | Standard-Taste | Beschreibung |
+|---|---|---|
+| Taschenlampen-Blitz | **Numpad 1** | Blendet den Jäger (weißer Bildschirm), wenn du ihn direkt anleuchtest und er dich gleichzeitig ansieht |
+| Leise sein | **Numpad 2** | Ein paar Sekunden unsichtbar für Geräusch-Radar, Fußspuren und Herzschlag |
+| Ablenkung | **Numpad 3** | Wirft eine Dose; wo sie aufschlägt, bekommt der Jäger einen falschen Ping |
+| Adrenalin-Sprint | automatisch | Trifft dich der Jäger, bist du kurz schneller |
+| Versteck-Bonus | automatisch | Bleibst du eine Weile still in der Hocke, sieht dich der Jäger nicht mehr mit Radar oder Chaser-Puls |
+
+Die Opfer-Tasten sind getrennt von den Jäger-Tasten. Wer Jäger ist, benutzt automatisch die Jäger-Belegung.
+Die Opfer-Anzeige steht unten links.
+
 Alle Tasten kannst du im Menü neu belegen (auf das Feld klicken, dann die neue Taste drücken).
 
 > **Hinweis F5:** In GMod macht F5 standardmäßig einen Screenshot. Das Menü geht trotzdem auf,
@@ -65,6 +78,11 @@ Der Jäger kann im Menü nur bis zu diesen Grenzen einstellen.
 | `ht_heart_range` | 1500 | Herzschlag ab dieser Entfernung hörbar |
 | `ht_victim_heart` / `ht_victim_heart_range` | 0 / 1000 | Opfer hören Herzklopfen, sobald ein Jäger näher als diese Entfernung ist |
 | `ht_teleport_range` / `ht_teleport_cooldown` | 800 / 45 | Teleport: Reichweite und Abklingzeit |
+| `ht_allow_adrenaline` / `ht_adrenaline_speed` / `ht_adrenaline_time` / `ht_adrenaline_cooldown` | 1 / 1.5 / 3 / 20 | Opfer: Adrenalin-Sprint |
+| `ht_allow_flash` / `ht_flash_range` / `ht_flash_time` / `ht_flash_cooldown` | 1 / 600 / 2.5 / 40 | Opfer: Taschenlampen-Blitz |
+| `ht_allow_silent` / `ht_silent_time` / `ht_silent_cooldown` | 1 / 6 / 45 | Opfer: Leise sein |
+| `ht_allow_decoy` / `ht_decoy_cooldown` | 1 / 25 | Opfer: Ablenkung |
+| `ht_allow_hide` / `ht_hide_time` | 1 / 5 | Opfer: Versteck-Bonus |
 
 ## Wie es funktioniert
 

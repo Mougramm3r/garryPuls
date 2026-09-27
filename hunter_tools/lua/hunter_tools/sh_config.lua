@@ -38,6 +38,27 @@ HunterTools.CV = {
 	allowTeleport    = CreateConVar("ht_allow_teleport", "1", SV_FLAGS, "Teleport erlauben", 0, 1),
 	teleportRange    = CreateConVar("ht_teleport_range", "800", SV_FLAGS, "Teleport: maximale Reichweite in Units", 100, 5000),
 	teleportCooldown = CreateConVar("ht_teleport_cooldown", "45", SV_FLAGS, "Teleport: Abklingzeit in Sekunden", 0, 600),
+
+	-- Fähigkeiten der Opfer
+	allowAdrenaline    = CreateConVar("ht_allow_adrenaline", "1", SV_FLAGS, "Opfer: Adrenalin-Sprint nach Treffer", 0, 1),
+	adrenalineSpeed    = CreateConVar("ht_adrenaline_speed", "1.5", SV_FLAGS, "Adrenalin: Tempo (1.5 = 50% schneller)", 1, 3),
+	adrenalineTime     = CreateConVar("ht_adrenaline_time", "3", SV_FLAGS, "Adrenalin: Dauer in Sekunden", 0.5, 10),
+	adrenalineCooldown = CreateConVar("ht_adrenaline_cooldown", "20", SV_FLAGS, "Adrenalin: Abklingzeit in Sekunden", 0, 300),
+
+	allowFlash         = CreateConVar("ht_allow_flash", "1", SV_FLAGS, "Opfer: Taschenlampen-Blitz", 0, 1),
+	flashRange         = CreateConVar("ht_flash_range", "600", SV_FLAGS, "Blitz: Reichweite in Units", 100, 3000),
+	flashTime          = CreateConVar("ht_flash_time", "2.5", SV_FLAGS, "Blitz: Jäger ist so lange geblendet (Sekunden)", 0.5, 10),
+	flashCooldown      = CreateConVar("ht_flash_cooldown", "40", SV_FLAGS, "Blitz: Abklingzeit in Sekunden", 0, 600),
+
+	allowSilent        = CreateConVar("ht_allow_silent", "1", SV_FLAGS, "Opfer: Leise sein", 0, 1),
+	silentTime         = CreateConVar("ht_silent_time", "6", SV_FLAGS, "Leise sein: Dauer in Sekunden", 1, 30),
+	silentCooldown     = CreateConVar("ht_silent_cooldown", "45", SV_FLAGS, "Leise sein: Abklingzeit in Sekunden", 0, 600),
+
+	allowDecoy         = CreateConVar("ht_allow_decoy", "1", SV_FLAGS, "Opfer: Ablenkung werfen", 0, 1),
+	decoyCooldown      = CreateConVar("ht_decoy_cooldown", "25", SV_FLAGS, "Ablenkung: Abklingzeit in Sekunden", 0, 600),
+
+	allowHide          = CreateConVar("ht_allow_hide", "1", SV_FLAGS, "Opfer: Versteck-Bonus (still in der Hocke)", 0, 1),
+	hideTime           = CreateConVar("ht_hide_time", "5", SV_FLAGS, "Versteck-Bonus: so lange still hocken (Sekunden)", 1, 30),
 }
 
 local CV = HunterTools.CV
@@ -61,8 +82,9 @@ HunterTools.Settings = {
 	{ key = "HT_HeartOn",         type = "bool",  default = false },
 }
 
--- Fähigkeiten mit Abklingzeit, die der Jäger per Taste auslöst (Reihenfolge = Netzwerk-ID)
-HunterTools.Abilities = { "chaser", "roar", "teleport" }
+-- Fähigkeiten mit Abklingzeit, die per Taste ausgelöst werden (Reihenfolge = Netzwerk-ID)
+HunterTools.Abilities = { "chaser", "roar", "teleport", "flash", "silent", "decoy" }
+HunterTools.VictimAbilities = { flash = true, silent = true, decoy = true }
 HunterTools.AbilityID = {}
 for i, name in ipairs(HunterTools.Abilities) do HunterTools.AbilityID[name] = i end
 
@@ -103,10 +125,28 @@ function HunterTools.ChaserActive(ply)
 	return ply:GetNWFloat("HT_ChaserUntil", 0) > CurTime()
 end
 
--- Brüllen: getroffene Opfer sind kurz langsamer (in SetupMove, damit es auch vorhergesagt wird)
-hook.Add("SetupMove", "HT_RoarSlow", function(ply, mv)
-	if ply:GetNWFloat("HT_SlowUntil", 0) <= CurTime() then return end
-	local f = ply:GetNWFloat("HT_SlowFactor", 1)
+-- Opfer, das eine Fähigkeit nutzen darf
+function HunterTools.IsVictim(ply)
+	return IsValid(ply) and ply:Alive() and not HunterTools.IsHunter(ply)
+		and ply:GetObserverMode() == OBS_MODE_NONE
+end
+
+-- "Leise sein": unsichtbar für Geräusch-Radar, Fußspuren und Herzschlag
+function HunterTools.IsSilent(ply)
+	return ply:GetNWFloat("HT_SilentUntil", 0) > CurTime()
+end
+
+-- Versteck-Bonus: unsichtbar für Chaser-Puls und Radar
+function HunterTools.IsHidden(ply)
+	return CV.allowHide:GetBool() and ply:GetNWBool("HT_Hidden", false)
+end
+
+-- Tempo: Brüllen macht langsamer, Adrenalin schneller (in SetupMove, damit es auch vorhergesagt wird)
+hook.Add("SetupMove", "HT_Speed", function(ply, mv)
+	local now, f = CurTime(), 1
+	if ply:GetNWFloat("HT_SlowUntil", 0) > now then f = f * ply:GetNWFloat("HT_SlowFactor", 1) end
+	if ply:GetNWFloat("HT_BoostUntil", 0) > now then f = f * ply:GetNWFloat("HT_BoostFactor", 1) end
+	if f == 1 then return end
 	mv:SetMaxClientSpeed(mv:GetMaxClientSpeed() * f)
 	mv:SetMaxSpeed(mv:GetMaxSpeed() * f)
 end)

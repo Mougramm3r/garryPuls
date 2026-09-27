@@ -7,6 +7,7 @@ util.AddNetworkString("HT_Roared")
 util.AddNetworkString("HT_Ping")
 util.AddNetworkString("HT_Tracks")
 util.AddNetworkString("HT_Heart")
+util.AddNetworkString("HT_Blind")
 util.AddNetworkString("HT_AdminSetHunter")
 util.AddNetworkString("HT_AdminSetCVar")
 
@@ -58,6 +59,8 @@ hook.Add("PlayerInitialSpawn", "HT_Join", function(ply)
 		end
 		if HunterTools.IsManager(ply) then
 			ply:ChatPrint("[Hunter] Hunter Tools geladen. Drücke F5 für das Menü.")
+		else
+			ply:ChatPrint("[Hunter] Drücke F5 für das Menü mit deinen Fähigkeiten.")
 		end
 	end)
 end)
@@ -109,6 +112,10 @@ end)
 ------------------------------------------------------------------------
 
 local ROAR_SOUND = "npc/fast_zombie/fz_scream1.wav"
+local FLASH_SOUND = "items/flashlight1.wav"
+local DECOY_MODEL = "models/props_junk/popcan01a.mdl"
+
+local SendPing -- weiter unten (Geräusch-Radar)
 local TELEPORT_SOUND = "npc/stalker/go_alert2a.wav"
 
 -- Sucht entlang der Blickrichtung einen freien Platz, an dem der Jäger stehen kann.
@@ -196,13 +203,93 @@ local Abilities = {
 			return CV.teleportCooldown:GetFloat()
 		end,
 	},
+
+	-- Opfer: blendet Jäger, die man anleuchtet und die einen gleichzeitig ansehen
+	flash = {
+		allow = CV.allowFlash, ready = "HT_FlashReady",
+		run = function(ply)
+			ply:EmitSound(FLASH_SOUND, 75, 90)
+
+			local eye, aim = ply:EyePos(), ply:GetAimVector()
+			local range = CV.flashRange:GetFloat()
+			local victimCone, hunterCone = math.cos(math.rad(15)), math.cos(math.rad(60))
+			local blinded = {}
+
+			for _, hunter in ipairs(player.GetAll()) do
+				if HunterTools.IsHunter(hunter) and hunter:Alive() then
+					local hunterEye = hunter:EyePos()
+					local dir = hunterEye - eye
+					if dir:Length() <= range then
+						dir:Normalize()
+						local victimLooks = aim:Dot(dir) >= victimCone
+						local hunterLooks = hunter:GetAimVector():Dot(-dir) >= hunterCone
+						if victimLooks and hunterLooks then
+							local tr = util.TraceLine({ start = eye, endpos = hunterEye, filter = { ply, hunter }, mask = MASK_VISIBLE })
+							if not tr.Hit then blinded[#blinded + 1] = hunter end
+						end
+					end
+				end
+			end
+
+			if #blinded > 0 then
+				net.Start("HT_Blind")
+				net.WriteFloat(CV.flashTime:GetFloat())
+				net.Send(blinded)
+				ply:ChatPrint("[Hunter] Jäger geblendet!")
+			else
+				ply:ChatPrint("[Hunter] Blitz verfehlt. Du musst den Jäger direkt anleuchten, während er dich ansieht.")
+			end
+			return CV.flashCooldown:GetFloat()
+		end,
+	},
+
+	-- Opfer: kurz unsichtbar für Geräusch-Radar, Fußspuren und Herzschlag
+	silent = {
+		allow = CV.allowSilent, ready = "HT_SilentReady",
+		run = function(ply, now)
+			local duration = CV.silentTime:GetFloat()
+			ply:SetNWFloat("HT_SilentUntil", now + duration)
+			return duration + CV.silentCooldown:GetFloat()
+		end,
+	},
+
+	-- Opfer: Dose werfen; beim Aufprall gibt es einen falschen Ping im Geräusch-Radar
+	decoy = {
+		allow = CV.allowDecoy, ready = "HT_DecoyReady",
+		run = function(ply)
+			local ent = ents.Create("prop_physics")
+			if not IsValid(ent) then return end
+			ent:SetModel(DECOY_MODEL)
+			ent:SetPos(ply:EyePos() + ply:GetAimVector() * 16)
+			ent:SetAngles(ply:EyeAngles())
+			ent:SetOwner(ply)
+			ent:SetCollisionGroup(COLLISION_GROUP_WEAPON)
+			ent:Spawn()
+
+			local phys = ent:GetPhysicsObject()
+			if IsValid(phys) then phys:SetVelocity(ply:GetAimVector() * 900 + ply:GetVelocity()) end
+
+			ent:AddCallback("PhysicsCollide", function(e, data)
+				if e.HT_Pinged or data.Speed < 80 then return end
+				e.HT_Pinged = true
+				e:EmitSound("physics/metal/soda_can_impact_hard" .. math.random(1, 3) .. ".wav", 90)
+				SendPing(data.HitPos + Vector(0, 0, 40), math.random(1, 2))
+			end)
+			SafeRemoveEntityDelayed(ent, 8)
+			return CV.decoyCooldown:GetFloat()
+		end,
+	},
 }
 
 net.Receive("HT_Ability", function(_, ply)
 	local name = HunterTools.Abilities[net.ReadUInt(4)]
 	local ability = Abilities[name]
-	if not ability or not HunterTools.IsHunter(ply) or not ply:Alive() then return end
-	if not ability.allow:GetBool() then return end
+	if not ability or not ability.allow:GetBool() then return end
+	if HunterTools.VictimAbilities[name] then
+		if not HunterTools.IsVictim(ply) then return end
+	elseif not HunterTools.IsHunter(ply) or not ply:Alive() then
+		return
+	end
 
 	local now = CurTime()
 	if ply:GetNWFloat(ability.ready, 0) > now then return end
@@ -230,21 +317,25 @@ end
 local NOISE_SPRINT, NOISE_JUMP, NOISE_SHOT = 1, 2, 3
 local lastNoise = {}
 
-local function MakeNoise(ply, kind)
-	local now = CurTime()
-	if (lastNoise[ply] or 0) > now - 0.6 then return end
-	lastNoise[ply] = now
-
-	local pos = ply:GetPos()
+-- Ping an alle Jäger mit Geräusch-Radar in Reichweite
+function SendPing(pos, kind)
 	local radiusSqr = CV.noiseRadius:GetFloat() ^ 2
 	for _, hunter in ipairs(HuntersWith("HT_NoiseOn", CV.allowNoise)) do
-		if HunterTools.IsTarget(hunter, ply) and hunter:GetPos():DistToSqr(pos) <= radiusSqr then
+		if hunter:GetPos():DistToSqr(pos) <= radiusSqr then
 			net.Start("HT_Ping")
-			net.WriteVector(pos + Vector(0, 0, 40))
+			net.WriteVector(pos)
 			net.WriteUInt(kind, 2)
 			net.Send(hunter)
 		end
 	end
+end
+
+local function MakeNoise(ply, kind)
+	if not HunterTools.IsVictim(ply) or HunterTools.IsSilent(ply) then return end
+	local now = CurTime()
+	if (lastNoise[ply] or 0) > now - 0.6 then return end
+	lastNoise[ply] = now
+	SendPing(ply:GetPos() + Vector(0, 0, 40), kind)
 end
 
 hook.Add("KeyPress", "HT_NoiseJump", function(ply, key)
@@ -263,8 +354,19 @@ timer.Create("HT_SensesTick", 0.25, 0, function()
 	local prints = {}
 
 	for _, ply in ipairs(player.GetAll()) do
-		if ply:Alive() and not HunterTools.IsHunter(ply) and ply:GetObserverMode() == OBS_MODE_NONE then
+		if HunterTools.IsVictim(ply) then
 			local vel = ply:GetVelocity()
+			local silent = HunterTools.IsSilent(ply)
+
+			-- Versteck-Bonus: eine Weile still in der Hocke
+			local hidden = false
+			if CV.allowHide:GetBool() and ply:Crouching() and ply:OnGround() and vel:Length2DSqr() < 25 then
+				ply.HT_StillSince = ply.HT_StillSince or CurTime()
+				hidden = CurTime() - ply.HT_StillSince >= CV.hideTime:GetFloat()
+			else
+				ply.HT_StillSince = nil
+			end
+			if ply:GetNWBool("HT_Hidden", false) ~= hidden then ply:SetNWBool("HT_Hidden", hidden) end
 
 			-- Sprinten ist laut, Gehen und Schleichen nicht
 			if ply:OnGround() and ply:KeyDown(IN_SPEED) and not ply:Crouching() and vel:Length2DSqr() > 180 ^ 2 then
@@ -272,7 +374,7 @@ timer.Create("HT_SensesTick", 0.25, 0, function()
 			end
 
 			-- Alle ~36 Units einen Fußabdruck, abwechselnd links und rechts
-			if #trackers > 0 and ply:OnGround() then
+			if #trackers > 0 and ply:OnGround() and not silent then
 				local pos = ply:GetPos()
 				local last = lastPrint[ply]
 				if not last or last.pos:DistToSqr(pos) > 36 ^ 2 then
@@ -310,7 +412,7 @@ timer.Create("HT_SensesTick", 0.25, 0, function()
 	for _, hunter in ipairs(listeners) do
 		local origin, nearest = hunter:GetPos(), -1
 		for _, target in ipairs(player.GetAll()) do
-			if HunterTools.IsTarget(hunter, target) then
+			if HunterTools.IsTarget(hunter, target) and not HunterTools.IsSilent(target) then
 				local d = origin:Distance(target:GetPos())
 				if nearest < 0 or d < nearest then nearest = d end
 			end
@@ -363,11 +465,28 @@ hook.Add("SetupPlayerVisibility", "HT_PVS", function(ply)
 	local radiusSqr = ply:GetNWFloat("HT_ChaserRadius", 0) ^ 2
 
 	for _, target in ipairs(player.GetAll()) do
-		if HunterTools.IsTarget(ply, target) then
+		if HunterTools.IsTarget(ply, target) and not HunterTools.IsHidden(target) then
 			local pos = target:GetPos()
 			if esp or origin:DistToSqr(pos) <= radiusSqr then
 				AddOriginToPVS(pos)
 			end
 		end
 	end
+end)
+
+-- Adrenalin-Sprint: Opfer wird vom Jäger getroffen und ist kurz schneller
+hook.Add("PostEntityTakeDamage", "HT_Adrenaline", function(ent, dmg, took)
+	if not took or not CV.allowAdrenaline:GetBool() then return end
+	if not IsValid(ent) or not ent:IsPlayer() or not HunterTools.IsVictim(ent) then return end
+
+	local attacker = dmg:GetAttacker()
+	if not HunterTools.IsHunter(attacker) then return end
+
+	local now = CurTime()
+	if ent:GetNWFloat("HT_AdrenalineReady", 0) > now then return end
+
+	local duration = CV.adrenalineTime:GetFloat()
+	ent:SetNWFloat("HT_BoostFactor", CV.adrenalineSpeed:GetFloat())
+	ent:SetNWFloat("HT_BoostUntil", now + duration)
+	ent:SetNWFloat("HT_AdrenalineReady", now + duration + CV.adrenalineCooldown:GetFloat())
 end)
