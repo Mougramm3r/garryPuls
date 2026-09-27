@@ -1,65 +1,59 @@
 -- Hunter Tools: Server
 -- Der Server entscheidet, wer Jäger ist. Nur Jäger bekommen die Positionen der anderen übertragen.
 
-util.AddNetworkString("HT_SetESP")
+util.AddNetworkString("HT_Set")
 util.AddNetworkString("HT_Chaser")
 util.AddNetworkString("HT_AdminSetHunter")
 util.AddNetworkString("HT_AdminSetCVar")
 
 local CV = HunterTools.CV
 
+local function ClearHunter(ply)
+	ply:SetNWBool("HT_Hunter", false)
+	ply:SetNWFloat("HT_ChaserUntil", 0)
+	PrintMessage(HUD_PRINTTALK, "[Hunter] " .. ply:Nick() .. " ist nicht mehr der Jäger.")
+end
+
 local function SetHunter(ply, state)
-	ply:SetNWBool("HT_Hunter", state)
+	if HunterTools.IsHunter(ply) == state then return end
 	if not state then
-		ply:SetNWBool("HT_ESP", false)
-		ply:SetNWFloat("HT_ChaserUntil", 0)
+		ClearHunter(ply)
+		return
 	end
+
+	-- Nur ein Jäger erlaubt: bisherigen Jäger ablösen
+	if not CV.multiHunter:GetBool() then
+		for _, other in ipairs(player.GetAll()) do
+			if other ~= ply and HunterTools.IsHunter(other) then ClearHunter(other) end
+		end
+	end
+
+	ply:SetNWBool("HT_Hunter", true)
 	-- Alle sehen im Chat, wer Jäger ist.
-	PrintMessage(HUD_PRINTTALK, "[Hunter] " .. ply:Nick() .. (state and " ist jetzt der Jäger." or " ist nicht mehr der Jäger."))
+	PrintMessage(HUD_PRINTTALK, "[Hunter] " .. ply:Nick() .. " ist jetzt der Jäger.")
 end
 HunterTools.SetHunter = SetHunter
 
-local function FindPlayer(query)
-	query = string.lower(query)
+-- Wird "mehrere Jäger" ausgeschaltet, bleibt nur der erste Jäger übrig.
+cvars.AddChangeCallback("ht_multi_hunter", function(_, _, new)
+	if new ~= "0" then return end
+	local kept = false
 	for _, ply in ipairs(player.GetAll()) do
-		if string.lower(ply:SteamID()) == query then return ply end
+		if HunterTools.IsHunter(ply) then
+			if kept then ClearHunter(ply) else kept = true end
+		end
 	end
-	for _, ply in ipairs(player.GetAll()) do
-		if string.find(string.lower(ply:Nick()), query, 1, true) then return ply end
-	end
-end
+end, "HT_Multi")
 
--- ht_sethunter <name|steamid|^> [1/0]    (^ = du selbst)
-concommand.Add("ht_sethunter", function(caller, _, args)
-	local function reply(msg)
-		if IsValid(caller) then caller:ChatPrint(msg) else print(msg) end
-	end
-
-	if IsValid(caller) and not caller:IsSuperAdmin() then
-		reply("[Hunter] Nur Superadmins dürfen den Jäger festlegen.")
-		return
-	end
-
-	local query = args[1]
-	if not query or query == "" then
-		reply("[Hunter] Benutzung: ht_sethunter <name|steamid|^> [1/0]")
-		return
-	end
-
-	local target = (query == "^" and IsValid(caller)) and caller or FindPlayer(query)
-	if not IsValid(target) then
-		reply("[Hunter] Spieler nicht gefunden: " .. query)
-		return
-	end
-
-	SetHunter(target, args[2] ~= "0")
-end)
-
-hook.Add("PlayerInitialSpawn", "HT_AdminHunter", function(ply)
+hook.Add("PlayerInitialSpawn", "HT_Join", function(ply)
 	-- Kurz warten, damit Admin-Mods (ULX etc.) die Usergroup gesetzt haben.
-	timer.Simple(3, function()
-		if IsValid(ply) and CV.adminsAreHunters:GetBool() and ply:IsAdmin() then
+	timer.Simple(5, function()
+		if not IsValid(ply) then return end
+		if CV.adminsAreHunters:GetBool() and ply:IsAdmin() then
 			SetHunter(ply, true)
+		end
+		if HunterTools.IsManager(ply) then
+			ply:ChatPrint("[Hunter] Hunter Tools geladen. Drücke F5 für das Menü.")
 		end
 	end)
 end)
@@ -70,7 +64,6 @@ net.Receive("HT_AdminSetHunter", function(_, ply)
 	local state = net.ReadBool()
 	if not HunterTools.IsManager(ply) then return end
 	if not IsValid(target) or not target:IsPlayer() then return end
-	if HunterTools.IsHunter(target) == state then return end
 	SetHunter(target, state)
 end)
 
@@ -88,33 +81,33 @@ net.Receive("HT_AdminSetCVar", function(_, ply)
 	RunConsoleCommand(name, tostring(value))
 end)
 
-hook.Add("PlayerInitialSpawn", "HT_Welcome", function(ply)
-	timer.Simple(5, function()
-		if IsValid(ply) and HunterTools.IsManager(ply) then
-			ply:ChatPrint("[Hunter] Hunter Tools geladen. Drücke F5 für das Menü.")
-		end
-	end)
-end)
+-- Jäger-Einstellung ändern: für sich selbst, oder als Host/Superadmin für andere
+net.Receive("HT_Set", function(_, ply)
+	local target = net.ReadEntity()
+	local key = net.ReadString()
+	local value = net.ReadFloat()
 
-net.Receive("HT_SetESP", function(_, ply)
-	local on = net.ReadBool()
-	if on and not (HunterTools.IsHunter(ply) and CV.allowESP:GetBool()) then return end
-	ply:SetNWBool("HT_ESP", on)
+	if not IsValid(target) or not target:IsPlayer() then return end
+	if target ~= ply and not HunterTools.IsManager(ply) then return end
+
+	local s = HunterTools.SettingByKey[key]
+	if not s then return end
+
+	if s.type == "bool" then
+		target:SetNWBool(key, value ~= 0)
+	else
+		target:SetNWFloat(key, math.Clamp(value, s.min, math.max(s.min, s.max())))
+	end
 end)
 
 net.Receive("HT_Chaser", function(_, ply)
-	local radius = net.ReadUInt(16)
-	local duration = net.ReadFloat()
-
 	if not HunterTools.IsHunter(ply) or not CV.allowChaser:GetBool() then return end
 
 	local now = CurTime()
 	if ply:GetNWFloat("HT_ChaserReady", 0) > now then return end
 
-	radius = math.Clamp(radius, 100, CV.chaserMaxRadius:GetFloat())
-	duration = math.Clamp(duration, 1, CV.chaserMaxTime:GetFloat())
-
-	ply:SetNWFloat("HT_ChaserRadius", radius)
+	local duration = HunterTools.Get(ply, "HT_ChaserCfgTime")
+	ply:SetNWFloat("HT_ChaserRadius", HunterTools.Get(ply, "HT_ChaserCfgRadius"))
 	ply:SetNWFloat("HT_ChaserUntil", now + duration)
 	ply:SetNWFloat("HT_ChaserReady", now + duration + CV.chaserCooldown:GetFloat())
 end)
@@ -124,7 +117,7 @@ end)
 hook.Add("SetupPlayerVisibility", "HT_PVS", function(ply)
 	if not HunterTools.IsHunter(ply) then return end
 
-	local esp = ply:GetNWBool("HT_ESP", false) and CV.allowESP:GetBool()
+	local esp = HunterTools.Get(ply, "HT_ESP") and CV.allowESP:GetBool()
 	local chaser = HunterTools.ChaserActive(ply) and CV.allowChaser:GetBool()
 	if not esp and not chaser then return end
 
