@@ -438,6 +438,10 @@ local function BuildServerTab(tab)
 	ServerSlider(tab, "Fußspuren sichtbar (s)", CV.tracksTime, 0)
 	ServerSlider(tab, "Herzschlag hörbar ab", CV.heartRange, 0)
 
+	AddHeader(tab, "Opfer")
+	ServerCheck(tab, "Opfer hören Herzklopfen, wenn der Jäger nah ist", CV.victimHeart)
+	ServerSlider(tab, "Opfer-Herzklopfen ab Entfernung", CV.victimHeartRange, 0)
+
 	AddHeader(tab, "Teleport")
 	ServerSlider(tab, "Reichweite", CV.teleportRange, 0)
 	ServerSlider(tab, "Abklingzeit (s)", CV.teleportCooldown, 0)
@@ -819,7 +823,8 @@ hook.Add("PostDrawTranslucentRenderables", "HT_Tracks", function(depth, sky)
 end)
 
 ------------------------------------------------------------------------
--- Herzschlag: je näher das nächste Opfer, desto schneller und lauter
+-- Herzschlag: je näher das nächste Opfer, desto schneller und lauter.
+-- Opfer hören (wenn im Server-Tab erlaubt) ihr eigenes Herzklopfen, sobald ein Jäger nah ist.
 ------------------------------------------------------------------------
 
 local HEART_SOUND = "physics/body/body_medium_impact_soft1.wav"
@@ -832,11 +837,18 @@ end)
 
 hook.Add("Think", "HT_Heartbeat", function()
 	local me = LP()
-	if not me or not HunterTools.IsHunter(me) or not me:Alive() then return end
-	if not Get(me, "HT_HeartOn") or not CV.allowHeart:GetBool() then return end
+	if not me or not me:Alive() then return end
+
+	local range
+	if HunterTools.IsHunter(me) then
+		if not Get(me, "HT_HeartOn") or not CV.allowHeart:GetBool() then return end
+		range = CV.heartRange:GetFloat()
+	else
+		if not CV.victimHeart:GetBool() then return end
+		range = CV.victimHeartRange:GetFloat()
+	end
 	if CurTime() - heartTime > 1 then return end -- keine aktuellen Daten
 
-	local range = CV.heartRange:GetFloat()
 	if heartDist < 0 or heartDist > range then return end
 
 	local now = CurTime()

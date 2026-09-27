@@ -63,6 +63,7 @@ Der Jäger kann im Menü nur bis zu diesen Grenzen einstellen.
 | `ht_noise_radius` | 2500 | Reichweite des Geräusch-Radars |
 | `ht_tracks_radius` / `ht_tracks_time` | 3000 / 8 | Fußspuren: Reichweite und Sichtdauer |
 | `ht_heart_range` | 1500 | Herzschlag ab dieser Entfernung hörbar |
+| `ht_victim_heart` / `ht_victim_heart_range` | 0 / 1000 | Opfer hören Herzklopfen, sobald ein Jäger näher als diese Entfernung ist |
 | `ht_teleport_range` / `ht_teleport_cooldown` | 800 / 45 | Teleport: Reichweite und Abklingzeit |
 
 ## Wie es funktioniert

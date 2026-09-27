@@ -319,6 +319,30 @@ timer.Create("HT_SensesTick", 0.25, 0, function()
 		net.WriteFloat(nearest)
 		net.Send(hunter)
 	end
+
+	-- Opfer-Herzklopfen: Entfernung zum nächsten Jäger
+	if CV.victimHeart:GetBool() then
+		local hunters = {}
+		for _, ply in ipairs(player.GetAll()) do
+			if HunterTools.IsHunter(ply) and ply:Alive() then hunters[#hunters + 1] = ply end
+		end
+		if #hunters > 0 then
+			for _, victim in ipairs(player.GetAll()) do
+				local nearest = -1
+				for _, hunter in ipairs(hunters) do
+					if HunterTools.IsTarget(hunter, victim) then
+						local d = hunter:GetPos():Distance(victim:GetPos())
+						if nearest < 0 or d < nearest then nearest = d end
+					end
+				end
+				if nearest >= 0 then
+					net.Start("HT_Heart")
+					net.WriteFloat(nearest)
+					net.Send(victim)
+				end
+			end
+		end
+	end
 end)
 
 hook.Add("PlayerDisconnected", "HT_Cleanup", function(ply)

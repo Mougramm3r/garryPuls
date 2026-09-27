@@ -32,6 +32,8 @@ HunterTools.CV = {
 
 	allowHeart       = CreateConVar("ht_allow_heart", "1", SV_FLAGS, "Herzschlag-Sensor erlauben", 0, 1),
 	heartRange       = CreateConVar("ht_heart_range", "1500", SV_FLAGS, "Herzschlag: ab dieser Entfernung hörbar", 200, 5000),
+	victimHeart      = CreateConVar("ht_victim_heart", "0", SV_FLAGS, "Opfer hören Herzklopfen, wenn ein Jäger in der Nähe ist", 0, 1),
+	victimHeartRange = CreateConVar("ht_victim_heart_range", "1000", SV_FLAGS, "Opfer-Herzklopfen: ab dieser Entfernung zum Jäger", 200, 5000),
 
 	allowTeleport    = CreateConVar("ht_allow_teleport", "1", SV_FLAGS, "Teleport erlauben", 0, 1),
 	teleportRange    = CreateConVar("ht_teleport_range", "800", SV_FLAGS, "Teleport: maximale Reichweite in Units", 100, 5000),
