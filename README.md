@@ -10,13 +10,17 @@ Deine Freunde laden den Client-Teil beim Joinen automatisch herunter.
    - Wenn du selbst hostest (Listen-Server über „Neues Spiel“): in **deine** GMod-Installation
    - Bei einem gemieteten/dedizierten Server: in den `addons`-Ordner des Servers
 2. Starte den Server bzw. die Map neu.
-3. Leg den Jäger fest (als Superadmin oder in der Server-Konsole):
-   ```
-   ht_sethunter ^            // du selbst wirst Jäger
-   ht_sethunter Max          // Spieler mit "Max" im Namen wird Jäger
-   ht_sethunter Max 0        // Max ist nicht mehr Jäger
-   ```
-   Alle Spieler sehen im Chat, wer Jäger ist.
+3. Drück im Spiel **F5**. Als Host bekommst du nach dem Joinen die Chat-Meldung „Hunter Tools geladen“.
+   - Tab **Jäger**: „Mich zum Jäger machen“ und danach alle Fähigkeiten und Tasten
+   - Tab **Spieler**: Haken setzen, wer Jäger ist (nur Host/Superadmin)
+   - Tab **Server**: Fähigkeiten erlauben/verbieten und Grenzen setzen (nur Host/Superadmin)
+
+Alles läuft über das Menü, du brauchst keine Konsolenbefehle. Alle Spieler sehen im Chat, wer Jäger ist.
+
+**Funktioniert nicht?**
+- Kommt nach dem Joinen keine Meldung „Hunter Tools geladen“, liegt der Ordner falsch. Richtig ist
+  `garrysmod/addons/hunter_tools/lua/autorun/hunter_tools_init.lua` (nicht `hunter_tools/hunter_tools/...`).
+- Du musst die Runde **selbst hosten** (Neues Spiel → Spieleranzahl über 1). Auf dem Server eines anderen muss dieser das Addon installieren.
 
 ## Fähigkeiten
 
@@ -32,11 +36,10 @@ Alle Tasten kannst du im Menü neu belegen (auf das Feld klicken, dann die neue 
 > **Hinweis F5:** In GMod macht F5 standardmäßig einen Screenshot. Das Menü geht trotzdem auf,
 > aber wenn dich der Screenshot stört: `unbind f5` in die Konsole eingeben oder im Menü eine andere Taste wählen.
 
-Konsolenbefehle (zum Beispiel für eigene Binds): `ht_menu`, `ht_toggle_aim`, `ht_toggle_esp`, `ht_chaser`
-
 ## Server-Einstellungen (Balancing)
 
-Diese Werte in der Server-Konsole oder in `server.cfg` setzen. Der Jäger kann im Menü nur bis zu diesen Grenzen einstellen.
+Alle Werte kannst du im Menü im Tab **Server** ändern. Für einen dedizierten Server gehen sie auch in `server.cfg`.
+Der Jäger kann im Menü nur bis zu diesen Grenzen einstellen.
 
 | ConVar | Standard | Bedeutung |
 |---|---|---|

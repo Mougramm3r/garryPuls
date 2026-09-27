@@ -96,6 +96,7 @@ end
 ------------------------------------------------------------------------
 
 local menuFrame
+local OpenMenu
 
 local function AddBinder(parent, label, cvar)
 	local row = parent:Add("DPanel")
@@ -149,13 +150,150 @@ local function AddHeader(parent, text)
 	h:SetTextColor(Color(255, 120, 60))
 end
 
-local function OpenMenu()
+local function AddButton(parent, text, onClick)
+	local btn = parent:Add("DButton")
+	btn:Dock(TOP)
+	btn:DockMargin(0, 4, 0, 4)
+	btn:SetTall(28)
+	btn:SetText(text)
+	btn.DoClick = onClick
+	return btn
+end
+
+local function AddInfo(parent, text)
+	local l = parent:Add("DLabel")
+	l:Dock(TOP)
+	l:DockMargin(0, 4, 0, 4)
+	l:SetWrap(true)
+	l:SetAutoStretchVertical(true)
+	l:SetText(text)
+	l:SetTextColor(Color(200, 200, 200))
+end
+
+local function SetHunterOnServer(ply, state)
+	net.Start("HT_AdminSetHunter")
+	net.WriteEntity(ply)
+	net.WriteBool(state)
+	net.SendToServer()
+end
+
+local function SetServerCVar(cvar, value)
+	-- Kurz warten, damit beim Ziehen am Slider nicht jede Zwischenstufe gesendet wird.
+	timer.Create("HT_SV_" .. cvar:GetName(), 0.25, 1, function()
+		net.Start("HT_AdminSetCVar")
+		net.WriteString(cvar:GetName())
+		net.WriteFloat(value)
+		net.SendToServer()
+	end)
+end
+
+local function AddServerSlider(parent, label, cvar, decimals)
+	local s = parent:Add("DNumSlider")
+	s:Dock(TOP)
+	s:DockMargin(0, 0, 0, 4)
+	s:SetText(label)
+	s:SetMinMax(cvar:GetMin() or 0, cvar:GetMax() or 100)
+	s:SetDecimals(decimals or 0)
+	s:SetValue(cvar:GetFloat())
+	s.Label:SetTextColor(color_white)
+	s.OnValueChanged = function(_, v) SetServerCVar(cvar, v) end
+end
+
+local function AddServerCheck(parent, label, cvar)
+	local c = parent:Add("DCheckBoxLabel")
+	c:Dock(TOP)
+	c:DockMargin(0, 2, 0, 6)
+	c:SetText(label)
+	c:SetTextColor(color_white)
+	c:SetValue(cvar:GetBool())
+	c.OnChange = function(_, v) SetServerCVar(cvar, v and 1 or 0) end
+end
+
+local function NewTab(sheet, name, icon)
+	local scroll = vgui.Create("DScrollPanel", sheet)
+	scroll:GetCanvas():DockPadding(8, 0, 8, 8)
+	sheet:AddSheet(name, scroll, icon)
+	return scroll
+end
+
+local function BuildHunterTab(tab)
+	if not IsHunter() then
+		AddHeader(tab, "Du bist gerade nicht der Jäger")
+		if HunterTools.IsManager(LP()) then
+			AddButton(tab, "Mich zum Jäger machen", function()
+				SetHunterOnServer(LP(), true)
+				timer.Simple(0.3, function()
+					if IsValid(menuFrame) then menuFrame:Remove() menuFrame = nil OpenMenu() end
+				end)
+			end)
+			AddInfo(tab, "Oder im Tab \"Spieler\" jemand anderen auswählen.")
+		else
+			AddInfo(tab, "Der Host kann dich im Menü zum Jäger machen.")
+		end
+		return
+	end
+
+	AddHeader(tab, "Aim-Hilfe")
+	AddCheck(tab, "Aim-Hilfe aktiv", cl.aimEnabled)
+	AddCheck(tab, "Nur beim Schießen / Zielen", cl.aimOnFire)
+	AddSlider(tab, "Stärke", cl.aimStrength, 0, CV.aimMaxStrength:GetFloat(), 2)
+	AddSlider(tab, "Winkel (Grad)", cl.aimFov, 1, CV.aimMaxFov:GetFloat(), 0)
+
+	AddHeader(tab, "Radar (alle durch Wände)")
+	AddCheck(tab, "Radar aktiv", cl.espEnabled)
+	AddCheck(tab, "Namen und Entfernung anzeigen", cl.espNames)
+
+	AddHeader(tab, "Chaser-Modus (Wärmebild-Puls)")
+	AddSlider(tab, "Radius (Units)", cl.chaserRadius, 100, CV.chaserMaxRadius:GetFloat(), 0)
+	AddSlider(tab, "Dauer (Sekunden)", cl.chaserTime, 1, CV.chaserMaxTime:GetFloat(), 1)
+	AddButton(tab, "Chaser-Puls jetzt auslösen", TriggerChaser)
+
+	AddHeader(tab, "Tasten (anklicken, dann neue Taste drücken)")
+	AddBinder(tab, "Menü öffnen", cl.keyMenu)
+	AddBinder(tab, "Aim-Hilfe an/aus", cl.keyAim)
+	AddBinder(tab, "Radar an/aus", cl.keyESP)
+	AddBinder(tab, "Chaser-Puls", cl.keyChaser)
+end
+
+local function BuildPlayersTab(tab)
+	AddHeader(tab, "Wer ist Jäger? (Haken setzen)")
+	for _, ply in ipairs(player.GetAll()) do
+		local c = tab:Add("DCheckBoxLabel")
+		c:Dock(TOP)
+		c:DockMargin(0, 2, 0, 6)
+		c:SetText(ply:Nick() .. (ply == LP() and "  (du)" or ""))
+		c:SetTextColor(color_white)
+		c:SetValue(HunterTools.IsHunter(ply))
+		c.OnChange = function(_, v)
+			if IsValid(ply) then SetHunterOnServer(ply, v) end
+		end
+	end
+end
+
+local function BuildServerTab(tab)
+	AddInfo(tab, "Diese Grenzen gelten für alle Jäger. Der Jäger kann im Tab \"Jäger\" nur innerhalb davon einstellen.")
+	AddHeader(tab, "Fähigkeiten erlauben")
+	AddServerCheck(tab, "Aim-Hilfe erlauben", CV.allowAim)
+	AddServerCheck(tab, "Radar erlauben", CV.allowESP)
+	AddServerCheck(tab, "Chaser-Modus erlauben", CV.allowChaser)
+	AddServerCheck(tab, "Admins automatisch Jäger", CV.adminsAreHunters)
+
+	AddHeader(tab, "Grenzen")
+	AddServerSlider(tab, "Max. Aim-Stärke", CV.aimMaxStrength, 2)
+	AddServerSlider(tab, "Max. Aim-Winkel", CV.aimMaxFov, 0)
+	AddServerSlider(tab, "Max. Chaser-Radius", CV.chaserMaxRadius, 0)
+	AddServerSlider(tab, "Max. Chaser-Dauer", CV.chaserMaxTime, 1)
+	AddServerSlider(tab, "Chaser-Abklingzeit", CV.chaserCooldown, 0)
+end
+
+function OpenMenu()
 	if IsValid(menuFrame) then menuFrame:Close() return end
-	if not IsHunter() then Notify("Du bist nicht der Jäger.") return end
+	local manager = HunterTools.IsManager(LP())
+	if not IsHunter() and not manager then Notify("Du bist nicht der Jäger.") return end
 
 	local f = vgui.Create("DFrame")
 	f:SetTitle("Hunter Tools")
-	f:SetSize(440, 560)
+	f:SetSize(460, 580)
 	f:Center()
 	f:MakePopup()
 	f.Paint = function(self, w, h)
@@ -164,35 +302,14 @@ local function OpenMenu()
 	end
 	menuFrame = f
 
-	local scroll = f:Add("DScrollPanel")
-	scroll:Dock(FILL)
-	scroll:DockPadding(8, 0, 8, 8)
+	local sheet = f:Add("DPropertySheet")
+	sheet:Dock(FILL)
 
-	AddHeader(scroll, "Aim-Hilfe")
-	AddCheck(scroll, "Aim-Hilfe aktiv", cl.aimEnabled)
-	AddCheck(scroll, "Nur beim Schießen / Zielen", cl.aimOnFire)
-	AddSlider(scroll, "Stärke", cl.aimStrength, 0, CV.aimMaxStrength:GetFloat(), 2)
-	AddSlider(scroll, "Winkel (Grad)", cl.aimFov, 1, CV.aimMaxFov:GetFloat(), 0)
-
-	AddHeader(scroll, "Radar (alle durch Wände)")
-	AddCheck(scroll, "Radar aktiv", cl.espEnabled)
-	AddCheck(scroll, "Namen und Entfernung anzeigen", cl.espNames)
-
-	AddHeader(scroll, "Chaser-Modus (Wärmebild-Puls)")
-	AddSlider(scroll, "Radius (Units)", cl.chaserRadius, 100, CV.chaserMaxRadius:GetFloat(), 0)
-	AddSlider(scroll, "Dauer (Sekunden)", cl.chaserTime, 1, CV.chaserMaxTime:GetFloat(), 1)
-	local btn = scroll:Add("DButton")
-	btn:Dock(TOP)
-	btn:DockMargin(0, 4, 0, 4)
-	btn:SetTall(28)
-	btn:SetText("Chaser-Puls jetzt auslösen")
-	btn.DoClick = TriggerChaser
-
-	AddHeader(scroll, "Tasten")
-	AddBinder(scroll, "Menü öffnen", cl.keyMenu)
-	AddBinder(scroll, "Aim-Hilfe an/aus", cl.keyAim)
-	AddBinder(scroll, "Radar an/aus", cl.keyESP)
-	AddBinder(scroll, "Chaser-Puls", cl.keyChaser)
+	BuildHunterTab(NewTab(sheet, "Jäger", "icon16/eye.png"))
+	if manager then
+		BuildPlayersTab(NewTab(sheet, "Spieler", "icon16/group.png"))
+		BuildServerTab(NewTab(sheet, "Server", "icon16/cog.png"))
+	end
 end
 
 concommand.Add("ht_menu", OpenMenu)
@@ -222,11 +339,10 @@ hook.Add("Think", "HT_Keys", function()
 	local pMenu, pAim, pESP, pChaser =
 		JustPressed(cl.keyMenu), JustPressed(cl.keyAim), JustPressed(cl.keyESP), JustPressed(cl.keyChaser)
 
-	if not HunterTools.IsHunter(me) then return end
 	if input.IsKeyTrapping() or gui.IsGameUIVisible() or gui.IsConsoleVisible() or me:IsTyping() then return end
 
-	if pMenu then OpenMenu() end
-	if IsValid(menuFrame) then return end
+	if pMenu and (HunterTools.IsHunter(me) or HunterTools.IsManager(me)) then OpenMenu() end
+	if IsValid(menuFrame) or not HunterTools.IsHunter(me) then return end
 
 	if pAim then ToggleAim() end
 	if pESP then ToggleESP() end

@@ -3,6 +3,8 @@
 
 util.AddNetworkString("HT_SetESP")
 util.AddNetworkString("HT_Chaser")
+util.AddNetworkString("HT_AdminSetHunter")
+util.AddNetworkString("HT_AdminSetCVar")
 
 local CV = HunterTools.CV
 
@@ -58,6 +60,38 @@ hook.Add("PlayerInitialSpawn", "HT_AdminHunter", function(ply)
 	timer.Simple(3, function()
 		if IsValid(ply) and CV.adminsAreHunters:GetBool() and ply:IsAdmin() then
 			SetHunter(ply, true)
+		end
+	end)
+end)
+
+-- Menü: Host/Superadmin macht einen Spieler zum Jäger (oder nimmt es zurück)
+net.Receive("HT_AdminSetHunter", function(_, ply)
+	local target = net.ReadEntity()
+	local state = net.ReadBool()
+	if not HunterTools.IsManager(ply) then return end
+	if not IsValid(target) or not target:IsPlayer() then return end
+	if HunterTools.IsHunter(target) == state then return end
+	SetHunter(target, state)
+end)
+
+-- Menü: Host/Superadmin ändert eine Server-Einstellung
+local editable = {}
+for _, cv in pairs(CV) do editable[cv:GetName()] = cv end
+
+net.Receive("HT_AdminSetCVar", function(_, ply)
+	local name = net.ReadString()
+	local value = net.ReadFloat()
+	if not HunterTools.IsManager(ply) then return end
+	local cv = editable[name]
+	if not cv then return end
+	value = math.Clamp(value, cv:GetMin() or value, cv:GetMax() or value)
+	RunConsoleCommand(name, tostring(value))
+end)
+
+hook.Add("PlayerInitialSpawn", "HT_Welcome", function(ply)
+	timer.Simple(5, function()
+		if IsValid(ply) and HunterTools.IsManager(ply) then
+			ply:ChatPrint("[Hunter] Hunter Tools geladen. Drücke F5 für das Menü.")
 		end
 	end)
 end)

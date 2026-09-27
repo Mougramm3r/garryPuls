@@ -17,6 +17,13 @@ HunterTools.CV = {
 	adminsAreHunters = CreateConVar("ht_admins_are_hunters", "0", SV_FLAGS, "Admins werden beim Joinen automatisch Jäger", 0, 1),
 }
 
+-- Wer darf den Jäger festlegen und die Server-Einstellungen ändern? (Host / Superadmin)
+function HunterTools.IsManager(ply)
+	if not IsValid(ply) then return false end
+	if game.SinglePlayer() or ply:IsSuperAdmin() then return true end
+	return SERVER and ply:IsListenServerHost() or false
+end
+
 function HunterTools.IsHunter(ply)
 	return IsValid(ply) and ply:GetNWBool("HT_Hunter", false)
 end
