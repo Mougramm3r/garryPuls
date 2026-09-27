@@ -35,6 +35,23 @@ Alles läuft über das Menü, du brauchst keine Konsolenbefehle. Alle Spieler se
 | Fußspuren | **Numpad 6** | Opfer hinterlassen leuchtende Fußabdrücke, die nur der Jäger sieht |
 | Herzschlag | **Numpad 7** | Je näher das nächste Opfer, desto schneller und lauter der Herzschlag. Zeigt keine Richtung |
 | Teleport | **Numpad 8** | Teleportiert dorthin, wo du hinschaust (kurze Reichweite, lange Abklingzeit) |
+| Gruselsound-Auswahl | **Numpad 9** | Kleines Fenster mit allen Gruselsounds, anklicken spielt ab |
+| Zufälliger Gruselsound | **Numpad 0** | Spielt einen zufälligen Gruselsound |
+
+### Gruselsounds
+
+Im Tab **Jäger** wählst du, **wo** der Sound abgespielt wird:
+
+- **Bei mir**: kommt von deiner Position (verrät dich)
+- **Hinter einem zufälligen Opfer**: ein paar Meter hinter einem Opfer, das nichts ahnt
+- **Wo ich hinschaue**: an der Stelle, auf die du zielst (gut zum Weglocken)
+- **Überall**: alle hören ihn direkt „im Kopf“ (kann der Admin verbieten)
+
+Eingebaut sind Sounds aus Half-Life 2 (z. B. spielende/lachende Kinder, Kinderschrei, Schluchzen, Atmen, Schreie, seltsame Stimmen).
+Es erscheinen nur die, die auf dem Server vorhanden sind.
+
+**Eigene Sounds:** Leg `.wav`-, `.mp3`- oder `.ogg`-Dateien in `addons/hunter_tools/sound/hunter_tools/`
+(z. B. `kinderlachen.mp3`). Nach einem Map-Neustart stehen sie mit ★ im Soundboard. Deine Freunde laden sie beim Joinen automatisch herunter.
 
 ### Fähigkeiten der Opfer (Tab „Opfer“, für alle Spieler)
 
@@ -78,6 +95,8 @@ Der Jäger kann im Menü nur bis zu diesen Grenzen einstellen.
 | `ht_heart_range` | 1500 | Herzschlag ab dieser Entfernung hörbar |
 | `ht_victim_heart` / `ht_victim_heart_range` | 0 / 1000 | Opfer hören Herzklopfen, sobald ein Jäger näher als diese Entfernung ist |
 | `ht_teleport_range` / `ht_teleport_cooldown` | 800 / 45 | Teleport: Reichweite und Abklingzeit |
+| `ht_allow_sounds` / `ht_sound_allow_global` | 1 / 1 | Gruselsounds erlauben / Modus „Überall“ erlauben |
+| `ht_sound_cooldown` / `ht_sound_level` / `ht_sound_range` | 10 / 85 / 2000 | Gruselsounds: Abklingzeit, Lautstärke/Reichweite, max. Entfernung für „Wo ich hinschaue“ |
 | `ht_allow_adrenaline` / `ht_adrenaline_speed` / `ht_adrenaline_time` / `ht_adrenaline_cooldown` | 1 / 1.5 / 3 / 20 | Opfer: Adrenalin-Sprint |
 | `ht_allow_flash` / `ht_flash_range` / `ht_flash_time` / `ht_flash_cooldown` | 1 / 600 / 2.5 / 40 | Opfer: Taschenlampen-Blitz |
 | `ht_allow_silent` / `ht_silent_time` / `ht_silent_cooldown` | 1 / 6 / 45 | Opfer: Leise sein |

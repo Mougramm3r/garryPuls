@@ -39,6 +39,12 @@ HunterTools.CV = {
 	teleportRange    = CreateConVar("ht_teleport_range", "800", SV_FLAGS, "Teleport: maximale Reichweite in Units", 100, 5000),
 	teleportCooldown = CreateConVar("ht_teleport_cooldown", "45", SV_FLAGS, "Teleport: Abklingzeit in Sekunden", 0, 600),
 
+	allowSounds      = CreateConVar("ht_allow_sounds", "1", SV_FLAGS, "Gruselsounds für den Jäger erlauben", 0, 1),
+	soundCooldown    = CreateConVar("ht_sound_cooldown", "10", SV_FLAGS, "Gruselsounds: Abklingzeit in Sekunden", 0, 300),
+	soundLevel       = CreateConVar("ht_sound_level", "85", SV_FLAGS, "Gruselsounds: Lautstärke/Reichweite (60 leise - 140 sehr weit)", 60, 140),
+	soundRange       = CreateConVar("ht_sound_range", "2000", SV_FLAGS, "Gruselsounds: max. Entfernung für \"Wo ich hinschaue\"", 200, 10000),
+	soundAllowGlobal = CreateConVar("ht_sound_allow_global", "1", SV_FLAGS, "Gruselsounds: Modus \"Überall\" erlauben", 0, 1),
+
 	-- Fähigkeiten der Opfer
 	allowAdrenaline    = CreateConVar("ht_allow_adrenaline", "1", SV_FLAGS, "Opfer: Adrenalin-Sprint nach Treffer", 0, 1),
 	adrenalineSpeed    = CreateConVar("ht_adrenaline_speed", "1.5", SV_FLAGS, "Adrenalin: Tempo (1.5 = 50% schneller)", 1, 3),
@@ -150,3 +156,32 @@ hook.Add("SetupMove", "HT_Speed", function(ply, mv)
 	mv:SetMaxClientSpeed(mv:GetMaxClientSpeed() * f)
 	mv:SetMaxSpeed(mv:GetMaxSpeed() * f)
 end)
+
+-- Gruselsounds: wo der Sound abgespielt wird
+HunterTools.SoundModes = {
+	{ id = 1, name = "Bei mir" },
+	{ id = 2, name = "Hinter einem zufälligen Opfer" },
+	{ id = 3, name = "Wo ich hinschaue" },
+	{ id = 4, name = "Überall (im Kopf aller Opfer)" },
+}
+
+-- Eingebaute Sounds aus Half-Life 2 (nur die, die auch installiert sind, erscheinen im Menü)
+HunterTools.BuiltinSounds = {
+	{ "Kinder spielen / lachen",  "ambient/voices/playground_memory.wav" },
+	{ "Kinderschrei",             "ambient/creatures/town_child_scream1.wav" },
+	{ "Teddy quietscht",          "ambient/creatures/teddy.wav" },
+	{ "Schluchzen",               "ambient/creatures/town_scared_sob1.wav" },
+	{ "Schluchzen 2",             "ambient/creatures/town_scared_sob2.wav" },
+	{ "Ängstliches Atmen",        "ambient/creatures/town_scared_breathing1.wav" },
+	{ "Frauenschrei",             "ambient/voices/f_scream1.wav" },
+	{ "Männerschrei",             "ambient/voices/m_scream1.wav" },
+	{ "Stöhnen",                  "ambient/creatures/town_moan1.wav" },
+	{ "Ruf aus der Ferne",        "ambient/creatures/town_zombie_call1.wav" },
+	{ "Schweres Atmen",           "npc/stalker/breathing3.wav" },
+	{ "Seltsame Stimmen",         "ambient/levels/citadel/strange_talk1.wav" },
+	{ "Seltsame Stimmen 2",       "ambient/levels/citadel/strange_talk3.wav" },
+	{ "Zombie-Murmeln",           "npc/zombie/zombie_voice_idle1.wav" },
+	{ "Dumpfer Schlag",           "ambient/atmosphere/hole_hit1.wav" },
+	{ "Grollen",                  "ambient/atmosphere/cave_hit1.wav" },
+	{ "Lautes Klopfen",           "physics/wood/wood_crate_impact_hard3.wav" },
+}

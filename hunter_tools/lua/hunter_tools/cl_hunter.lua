@@ -14,12 +14,16 @@ local keys = {
 	tracks   = CreateClientConVar("ht_key_tracks", tostring(KEY_PAD_6), true, false, "Taste: Fußspuren an/aus"),
 	heart    = CreateClientConVar("ht_key_heart", tostring(KEY_PAD_7), true, false, "Taste: Herzschlag an/aus"),
 	teleport = CreateClientConVar("ht_key_teleport", tostring(KEY_PAD_8), true, false, "Taste: Teleport"),
+	sboard   = CreateClientConVar("ht_key_soundboard", tostring(KEY_PAD_9), true, false, "Taste: Gruselsound-Auswahl"),
+	srandom  = CreateClientConVar("ht_key_sound_random", tostring(KEY_PAD_0), true, false, "Taste: Zufälliger Gruselsound"),
 
 	-- Opfer (eigene Tasten, da man nie gleichzeitig Jäger und Opfer ist)
 	vflash   = CreateClientConVar("ht_key_victim_flash", tostring(KEY_PAD_1), true, false, "Taste (Opfer): Taschenlampen-Blitz"),
 	vsilent  = CreateClientConVar("ht_key_victim_silent", tostring(KEY_PAD_2), true, false, "Taste (Opfer): Leise sein"),
 	vdecoy   = CreateClientConVar("ht_key_victim_decoy", tostring(KEY_PAD_3), true, false, "Taste (Opfer): Ablenkung werfen"),
 }
+
+local soundMode = CreateClientConVar("ht_sound_mode", "2", true, false, "Gruselsounds: Wo abspielen (1-4)", 1, 4)
 
 local function Notify(msg)
 	chat.AddText(Color(255, 90, 40), "[Hunter] ", color_white, msg)
@@ -156,10 +160,61 @@ local function UseAbility(name)
 end
 
 ------------------------------------------------------------------------
+-- Gruselsounds
+------------------------------------------------------------------------
+
+local soundNames = {}
+
+net.Receive("HT_SoundList", function()
+	soundNames = {}
+	for i = 1, net.ReadUInt(8) do soundNames[i] = net.ReadString() end
+end)
+
+local function RequestSoundList()
+	net.Start("HT_SoundPlay")
+	net.WriteUInt(0, 8)
+	net.WriteUInt(0, 3)
+	net.SendToServer()
+end
+
+net.Receive("HT_SoundGlobal", function()
+	surface.PlaySound(net.ReadString())
+end)
+
+local function PlayScarySound(index)
+	local me = LP()
+	if not me or not index or not soundNames[index] then return end
+	if not CV.allowSounds:GetBool() then Notify("Gruselsounds sind auf diesem Server deaktiviert.") return end
+
+	local mode = soundMode:GetInt()
+	if mode == 4 and not CV.soundAllowGlobal:GetBool() then
+		Notify("Der Modus \"Überall\" ist auf diesem Server verboten.")
+		return
+	end
+
+	local wait = me:GetNWFloat("HT_SoundReady", 0) - CurTime()
+	if wait > 0 then
+		Notify(string.format("Gruselsound lädt noch (%.0fs)", wait))
+		return
+	end
+
+	net.Start("HT_SoundPlay")
+	net.WriteUInt(index, 8)
+	net.WriteUInt(mode, 3)
+	net.SendToServer()
+	Notify("Sound: " .. soundNames[index])
+end
+
+local function PlayRandomSound()
+	if #soundNames == 0 then Notify("Keine Gruselsounds gefunden.") return end
+	PlayScarySound(math.random(#soundNames))
+end
+
+------------------------------------------------------------------------
 -- Menü-Bausteine
 ------------------------------------------------------------------------
 
-local menuFrame, playerFrame
+local menuFrame, playerFrame, soundFrame
 local OpenMenu
 
 local function AddHeader(parent, text)
@@ -325,6 +380,38 @@ local function BuildHunterTab(tab)
 
 	BuildAbilities(tab, me)
 
+	AddHeader(tab, "Gruselsounds")
+	if not CV.allowSounds:GetBool() then
+		AddInfo(tab, "Gruselsounds sind im Tab \"Server\" gerade verboten.")
+	else
+		local mode = tab:Add("DComboBox")
+		mode:Dock(TOP)
+		mode:DockMargin(0, 2, 0, 6)
+		mode:SetTall(24)
+		for _, m in ipairs(HunterTools.SoundModes) do
+			if m.id ~= 4 or CV.soundAllowGlobal:GetBool() then
+				mode:AddChoice("Abspielen: " .. m.name, m.id, soundMode:GetInt() == m.id)
+			end
+		end
+		mode.OnSelect = function(_, _, _, id) soundMode:SetInt(id) end
+
+		if #soundNames == 0 then
+			AddInfo(tab, "Soundliste wird geladen... Menü gleich nochmal öffnen.")
+		end
+		local grid = tab:Add("DIconLayout")
+		grid:Dock(TOP)
+		grid:SetSpaceX(4)
+		grid:SetSpaceY(4)
+		for i, name in ipairs(soundNames) do
+			local b = grid:Add("DButton")
+			b:SetSize(200, 24)
+			b:SetText(name)
+			b.DoClick = function() PlayScarySound(i) end
+		end
+		AddButton(tab, "Zufälliger Gruselsound", PlayRandomSound)
+		AddInfo(tab, "Eigene Sounds: .wav/.mp3/.ogg in den Ordner addons/hunter_tools/sound/hunter_tools/ legen (mit ★ markiert).")
+	end
+
 	AddHeader(tab, "Tasten (anklicken, dann neue Taste drücken)")
 	AddBinder(tab, "Menü öffnen", keys.menu)
 	AddBinder(tab, "Aim-Hilfe an/aus", keys.aim)
@@ -335,6 +422,8 @@ local function BuildHunterTab(tab)
 	AddBinder(tab, "Fußspuren an/aus", keys.tracks)
 	AddBinder(tab, "Herzschlag an/aus", keys.heart)
 	AddBinder(tab, "Teleport", keys.teleport)
+	AddBinder(tab, "Gruselsound-Auswahl", keys.sboard)
+	AddBinder(tab, "Zufälliger Gruselsound", keys.srandom)
 end
 
 local function BuildVictimTab(tab)
@@ -486,6 +575,13 @@ local function BuildServerTab(tab)
 	ServerSlider(tab, "Reichweite", CV.teleportRange, 0)
 	ServerSlider(tab, "Abklingzeit (s)", CV.teleportCooldown, 0)
 
+	AddHeader(tab, "Gruselsounds")
+	ServerCheck(tab, "Gruselsounds erlauben", CV.allowSounds)
+	ServerCheck(tab, "Modus \"Überall\" erlauben", CV.soundAllowGlobal)
+	ServerSlider(tab, "Abklingzeit (s)", CV.soundCooldown, 0)
+	ServerSlider(tab, "Lautstärke / Reichweite", CV.soundLevel, 0)
+	ServerSlider(tab, "Max. Entfernung \"Wo ich hinschaue\"", CV.soundRange, 0)
+
 	AddHeader(tab, "OPFER: Herzklopfen")
 	ServerCheck(tab, "Opfer hören Herzklopfen, wenn der Jäger nah ist", CV.victimHeart)
 	ServerSlider(tab, "Opfer-Herzklopfen ab Entfernung", CV.victimHeartRange, 0)
@@ -516,8 +612,33 @@ local function BuildServerTab(tab)
 	ServerSlider(tab, "Still hocken für (s)", CV.hideTime, 0)
 end
 
+-- Schnellauswahl für Gruselsounds (Taste), schließt sich nach dem Abspielen
+local function OpenSoundboard()
+	if IsValid(soundFrame) then soundFrame:Remove() return end
+	RequestSoundList()
+	if #soundNames == 0 then Notify("Keine Gruselsounds gefunden.") return end
+
+	local f = vgui.Create("DFrame")
+	f:SetTitle("Gruselsounds (" .. HunterTools.SoundModes[soundMode:GetInt()].name .. ")")
+	f:SetSize(240, math.min(60 + #soundNames * 28, ScrH() - 100))
+	f:Center()
+	f:MakePopup()
+	StyleFrame(f)
+	soundFrame = f
+
+	local scroll = NewScroll(f)
+	scroll:Dock(FILL)
+	for i, name in ipairs(soundNames) do
+		AddButton(scroll, name, function()
+			PlayScarySound(i)
+			f:Remove()
+		end)
+	end
+end
+
 function OpenMenu(activeTab)
 	if IsValid(menuFrame) then menuFrame:Close() return end
+	RequestSoundList()
 	local manager = HunterTools.IsManager(LP())
 
 	local f = vgui.Create("DFrame")
@@ -571,7 +692,7 @@ hook.Add("Think", "HT_Keys", function()
 	if input.IsKeyTrapping() or gui.IsGameUIVisible() or gui.IsConsoleVisible() or me:IsTyping() then return end
 
 	if pressed.menu then OpenMenu() end
-	if IsValid(menuFrame) or IsValid(playerFrame) then return end
+	if IsValid(menuFrame) or IsValid(playerFrame) or IsValid(soundFrame) then return end
 
 	if not HunterTools.IsHunter(me) then
 		if not HunterTools.IsVictim(me) then return end
@@ -589,6 +710,8 @@ hook.Add("Think", "HT_Keys", function()
 	if pressed.chaser then UseAbility("chaser") end
 	if pressed.roar then UseAbility("roar") end
 	if pressed.teleport then UseAbility("teleport") end
+	if pressed.sboard then OpenSoundboard() end
+	if pressed.srandom then PlayRandomSound() end
 end)
 
 ------------------------------------------------------------------------
@@ -770,7 +893,11 @@ hook.Add("HUDPaint", "HT_HUD", function()
 		lines[#lines + 1] = { "Chaser: bereit", Color(120, 255, 120) }
 	end
 
-	for _, a in ipairs({ { "Brüllen", "HT_RoarReady", CV.allowRoar }, { "Teleport", "HT_TeleportReady", CV.allowTeleport } }) do
+	for _, a in ipairs({
+		{ "Brüllen", "HT_RoarReady", CV.allowRoar },
+		{ "Teleport", "HT_TeleportReady", CV.allowTeleport },
+		{ "Gruselsound", "HT_SoundReady", CV.allowSounds },
+	}) do
 		if a[3]:GetBool() then
 			local r = me:GetNWFloat(a[2], 0)
 			if r > now then

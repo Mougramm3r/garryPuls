@@ -1,0 +1,11 @@
+Eigene Gruselsounds
+===================
+
+Leg hier eigene Sounddateien ab (.wav, .mp3 oder .ogg), z. B. kinderlachen.mp3
+Sie erscheinen nach einem Map-Neustart automatisch im Soundboard des Jägers.
+Der Dateiname wird als Name angezeigt (Unterstriche werden zu Leerzeichen).
+
+Tipps:
+- Kurze Dateien (unter 1 MB) nehmen, die Freunde laden sie beim Joinen herunter.
+- .wav am besten mit 44100 Hz, 16 Bit.
+- Keine Umlaute oder Leerzeichen im Dateinamen verwenden.

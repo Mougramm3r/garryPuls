@@ -8,6 +8,9 @@ util.AddNetworkString("HT_Ping")
 util.AddNetworkString("HT_Tracks")
 util.AddNetworkString("HT_Heart")
 util.AddNetworkString("HT_Blind")
+util.AddNetworkString("HT_SoundList")
+util.AddNetworkString("HT_SoundPlay")
+util.AddNetworkString("HT_SoundGlobal")
 util.AddNetworkString("HT_AdminSetHunter")
 util.AddNetworkString("HT_AdminSetCVar")
 
@@ -489,4 +492,109 @@ hook.Add("PostEntityTakeDamage", "HT_Adrenaline", function(ent, dmg, took)
 	ent:SetNWFloat("HT_BoostFactor", CV.adrenalineSpeed:GetFloat())
 	ent:SetNWFloat("HT_BoostUntil", now + duration)
 	ent:SetNWFloat("HT_AdrenalineReady", now + duration + CV.adrenalineCooldown:GetFloat())
+end)
+
+------------------------------------------------------------------------
+-- Gruselsounds
+------------------------------------------------------------------------
+
+local SOUND_EXT = { wav = true, mp3 = true, ogg = true }
+local soundList = {}
+
+-- Eingebaute HL2-Sounds + eigene Dateien aus sound/hunter_tools/
+local function BuildSoundList()
+	soundList = {}
+	for _, entry in ipairs(HunterTools.BuiltinSounds) do
+		if file.Exists("sound/" .. entry[2], "GAME") then
+			soundList[#soundList + 1] = { name = entry[1], path = entry[2] }
+		end
+	end
+
+	local files = file.Find("sound/hunter_tools/*", "GAME")
+	table.sort(files)
+	for _, f in ipairs(files) do
+		local ext = string.lower(string.GetExtensionFromFilename(f) or "")
+		if SOUND_EXT[ext] then
+			local path = "hunter_tools/" .. f
+			resource.AddFile("sound/" .. path) -- Freunde laden die Datei beim Joinen herunter
+			local name = string.gsub(string.StripExtension(f), "_", " ")
+			soundList[#soundList + 1] = { name = "★ " .. name, path = path }
+		end
+	end
+end
+BuildSoundList()
+
+local function SendSoundList(ply)
+	net.Start("HT_SoundList")
+	net.WriteUInt(math.min(#soundList, 255), 8)
+	for i = 1, math.min(#soundList, 255) do net.WriteString(soundList[i].name) end
+	net.Send(ply)
+end
+
+hook.Add("PlayerInitialSpawn", "HT_SoundList", function(ply)
+	timer.Simple(3, function() if IsValid(ply) then SendSoundList(ply) end end)
+end)
+
+-- Ein Ort ein Stück hinter einem zufälligen Opfer (nicht in einer Wand)
+local function SpotNearRandomVictim(hunter)
+	local victims = {}
+	for _, ply in ipairs(player.GetAll()) do
+		if HunterTools.IsTarget(hunter, ply) then victims[#victims + 1] = ply end
+	end
+	if #victims == 0 then return end
+
+	local victim = victims[math.random(#victims)]
+	local eye = victim:EyePos()
+	local back = -victim:GetAimVector()
+	back.z = 0
+	back:Normalize()
+	local tr = util.TraceLine({
+		start = eye,
+		endpos = eye + back * math.random(120, 250) + VectorRand() * 40,
+		filter = victim,
+		mask = MASK_SOLID_BRUSHONLY,
+	})
+	return tr.HitPos + tr.HitNormal * 8
+end
+
+net.Receive("HT_SoundPlay", function(_, ply)
+	local index = net.ReadUInt(8)
+	local mode = net.ReadUInt(3)
+
+	-- Leere Anfrage = Liste neu senden (beim Öffnen des Menüs)
+	if index == 0 then SendSoundList(ply) return end
+
+	if not HunterTools.IsHunter(ply) or not ply:Alive() or not CV.allowSounds:GetBool() then return end
+	local entry = soundList[index]
+	if not entry then return end
+
+	local now = CurTime()
+	if ply:GetNWFloat("HT_SoundReady", 0) > now then return end
+
+	local level = CV.soundLevel:GetInt()
+	if mode == 1 then
+		sound.Play(entry.path, ply:EyePos(), level)
+	elseif mode == 2 then
+		local pos = SpotNearRandomVictim(ply)
+		if not pos then ply:ChatPrint("[Hunter] Kein Opfer da.") return end
+		sound.Play(entry.path, pos, level)
+	elseif mode == 3 then
+		local eye = ply:EyePos()
+		local tr = util.TraceLine({
+			start = eye,
+			endpos = eye + ply:GetAimVector() * CV.soundRange:GetFloat(),
+			filter = ply,
+			mask = MASK_SOLID_BRUSHONLY,
+		})
+		sound.Play(entry.path, tr.HitPos + tr.HitNormal * 8, level)
+	elseif mode == 4 then
+		if not CV.soundAllowGlobal:GetBool() then return end
+		net.Start("HT_SoundGlobal")
+		net.WriteString(entry.path)
+		net.Broadcast()
+	else
+		return
+	end
+
+	ply:SetNWFloat("HT_SoundReady", now + CV.soundCooldown:GetFloat())
 end)
