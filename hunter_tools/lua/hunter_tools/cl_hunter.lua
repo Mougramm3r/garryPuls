@@ -1,106 +1,98 @@
--- Hunter Tools: Client (Menü, Keybinds, Aim-Hilfe, Radar, Chaser-Wärmebild)
+-- Hunter Tools: client (keys, abilities, effects, HUD)
 
-local CV = HunterTools.CV
-local Get = HunterTools.Get
+local HT = HunterTools
+local CV = HT.CV
+local Get = HT.Get
 
--- Tastenbelegung (nur für dich, wird gespeichert)
-local keys = {
-	menu     = CreateClientConVar("ht_key_menu", tostring(KEY_F5), true, false, "Taste: Menü"),
-	aim      = CreateClientConVar("ht_key_aim", tostring(KEY_PAD_1), true, false, "Taste: Aim-Hilfe an/aus"),
-	esp      = CreateClientConVar("ht_key_esp", tostring(KEY_PAD_2), true, false, "Taste: Radar an/aus"),
-	chaser   = CreateClientConVar("ht_key_chaser", tostring(KEY_PAD_3), true, false, "Taste: Chaser-Puls"),
-	roar     = CreateClientConVar("ht_key_roar", tostring(KEY_PAD_4), true, false, "Taste: Brüllen"),
-	noise    = CreateClientConVar("ht_key_noise", tostring(KEY_PAD_5), true, false, "Taste: Geräusch-Radar an/aus"),
-	tracks   = CreateClientConVar("ht_key_tracks", tostring(KEY_PAD_6), true, false, "Taste: Fußspuren an/aus"),
-	heart    = CreateClientConVar("ht_key_heart", tostring(KEY_PAD_7), true, false, "Taste: Herzschlag an/aus"),
-	teleport = CreateClientConVar("ht_key_teleport", tostring(KEY_PAD_8), true, false, "Taste: Teleport"),
-	sboard   = CreateClientConVar("ht_key_soundboard", tostring(KEY_PAD_9), true, false, "Taste: Gruselsound-Auswahl"),
-	srandom  = CreateClientConVar("ht_key_sound_random", tostring(KEY_PAD_0), true, false, "Taste: Zufälliger Gruselsound"),
+surface.CreateFont("HT_Timer", { font = "Roboto", size = 64, weight = 800 })
+surface.CreateFont("HT_Sub", { font = "Roboto", size = 18, weight = 700 })
+surface.CreateFont("HT_Row", { font = "Roboto", size = 16, weight = 500 })
+surface.CreateFont("HT_RowBold", { font = "Roboto", size = 16, weight = 800 })
+surface.CreateFont("HT_Key", { font = "Roboto Mono", size = 13, weight = 600 })
+surface.CreateFont("HT_Big", { font = "Roboto", size = 42, weight = 800 })
 
-	-- Opfer (eigene Tasten, da man nie gleichzeitig Jäger und Opfer ist)
-	vflash   = CreateClientConVar("ht_key_victim_flash", tostring(KEY_PAD_1), true, false, "Taste (Opfer): Taschenlampen-Blitz"),
-	vsilent  = CreateClientConVar("ht_key_victim_silent", tostring(KEY_PAD_2), true, false, "Taste (Opfer): Leise sein"),
-	vdecoy   = CreateClientConVar("ht_key_victim_decoy", tostring(KEY_PAD_3), true, false, "Taste (Opfer): Ablenkung werfen"),
+HT.Colors = {
+	panel = Color(16, 12, 13, 215),
+	line = Color(58, 46, 47),
+	text = Color(236, 228, 223),
+	muted = Color(160, 146, 141),
+	faint = Color(111, 98, 94),
+	accent = Color(184, 50, 42),
+	cold = Color(116, 182, 200),
+	good = Color(134, 192, 127),
+	warn = Color(217, 164, 65),
 }
+local C = HT.Colors
 
-local soundMode = CreateClientConVar("ht_sound_mode", "2", true, false, "Gruselsounds: Wo abspielen (1-4)", 1, 4)
+-- Keys (only for you, saved)
+HT.Keys = {
+	menu = CreateClientConVar("ht_key_menu", tostring(KEY_F5), true, false, "Key: open menu"),
+}
+for i = 1, HT.SLOTS do
+	HT.Keys["slot" .. i] = CreateClientConVar("ht_key_slot" .. i, tostring(KEY_PAD_0 + i), true, false, "Key: ability slot " .. i)
+end
+HT.KeyDefaults = { menu = KEY_F5, slot1 = KEY_PAD_1, slot2 = KEY_PAD_2, slot3 = KEY_PAD_3, slot4 = KEY_PAD_4 }
 
-local function Notify(msg)
-	chat.AddText(Color(255, 90, 40), "[Hunter] ", color_white, msg)
+HT.SoundMode = CreateClientConVar("ht_sound_mode", "2", true, false, "Scary sounds: where to play (1-4)", 1, 4)
+
+function HT.KeyName(code)
+	code = tonumber(code) or 0
+	if code <= 0 then return "—" end
+	if code >= KEY_PAD_0 and code <= KEY_PAD_9 then return "NUM " .. (code - KEY_PAD_0) end
+	return string.upper(input.GetKeyName(code) or "?")
+end
+
+function HT.Notify(msg)
+	chat.AddText(C.accent, "[Hunter] ", color_white, msg)
 end
 
 local function LP()
 	local ply = LocalPlayer()
 	return IsValid(ply) and ply or nil
 end
-
-local function IsHunter()
-	local ply = LP()
-	return ply ~= nil and HunterTools.IsHunter(ply)
-end
-
--- Alle sichtbaren (übertragenen) Spieler-Ziele
-local function Targets()
-	local me, list = LP(), {}
-	if not me then return list end
-	for _, ply in ipairs(player.GetAll()) do
-		if HunterTools.IsTarget(me, ply) and not ply:IsDormant() then
-			list[#list + 1] = ply
-		end
-	end
-	return list
-end
-
--- NPCs / Nextbots (optional für die Aim-Hilfe, praktisch auch zum Testen)
-local npcCache, npcCacheTime = {}, 0
-local function NPCTargets()
-	if CurTime() - npcCacheTime > 0.5 then
-		npcCacheTime = CurTime()
-		npcCache = {}
-		for _, ent in ipairs(ents.GetAll()) do
-			if (ent:IsNPC() or ent:IsNextBot()) and ent:Health() > 0 then
-				npcCache[#npcCache + 1] = ent
-			end
-		end
-	end
-	local list = {}
-	for _, ent in ipairs(npcCache) do
-		if IsValid(ent) and not ent:IsDormant() and ent:Health() > 0 then list[#list + 1] = ent end
-	end
-	return list
-end
+HT.LP = LP
 
 ------------------------------------------------------------------------
--- Einstellungen an den Server senden
+-- Data from the server: roles and game settings
 ------------------------------------------------------------------------
 
-local function SendSetting(target, key, value, instant)
-	if isbool(value) then value = value and 1 or 0 end
+net.Receive("HT_Data", function()
+	local data = util.JSONToTable(net.ReadString())
+	if not istable(data) then return end
+	HT.Roles = data.roles or HT.Roles
+	HT.Game = data.game or HT.Game
+	hook.Run("HT_DataUpdated")
+end)
+
+------------------------------------------------------------------------
+-- Personal settings (sent to the server, remembered between sessions)
+------------------------------------------------------------------------
+
+function HT.SendSetting(target, key, value, instant)
+	if isbool(value) then value = value and "1" or "0" end
+	value = tostring(value)
 	local function send()
 		if not IsValid(target) then return end
 		net.Start("HT_Set")
 		net.WriteEntity(target)
 		net.WriteString(key)
-		net.WriteFloat(value)
+		net.WriteString(value)
 		net.SendToServer()
 	end
 	if instant then send() return end
-	-- Kurz warten, damit beim Ziehen am Slider nicht jede Zwischenstufe gesendet wird.
+	-- wait a moment so dragging a slider doesn't send every step
 	timer.Create("HT_Set_" .. target:EntIndex() .. key, 0.2, 1, send)
 end
 
--- Eigene Einstellungen merken und beim nächsten Joinen wiederherstellen
 local restored = false
 
 hook.Add("InitPostEntity", "HT_Restore", function()
 	timer.Simple(2, function()
 		local me = LP()
 		if not me then return end
-		for _, s in ipairs(HunterTools.Settings) do
-			local saved = cookie.GetNumber("ht_" .. s.key)
-			if saved and s.key ~= "HT_AimOn" and s.key ~= "HT_ESP" then
-				SendSetting(me, s.key, saved, true)
-			end
+		for _, s in ipairs(HT.Settings) do
+			local saved = cookie.GetString("ht2_" .. s.key)
+			if saved then HT.SendSetting(me, s.key, saved, true) end
 		end
 		restored = true
 	end)
@@ -109,68 +101,93 @@ end)
 timer.Create("HT_Save", 3, 0, function()
 	local me = LP()
 	if not me or not restored then return end
-	for _, s in ipairs(HunterTools.Settings) do
+	for _, s in ipairs(HT.Settings) do
 		local v = Get(me, s.key)
-		cookie.Set("ht_" .. s.key, tostring(isbool(v) and (v and 1 or 0) or v))
+		cookie.Set("ht2_" .. s.key, isbool(v) and (v and "1" or "0") or tostring(v))
 	end
 end)
 
 ------------------------------------------------------------------------
--- Aktionen
+-- Using abilities
 ------------------------------------------------------------------------
 
-local function ToggleSetting(key, allowed, name)
+HT.LastUsed = nil -- shown in the HUD status line
+
+function HT.UseAbility(id)
 	local me = LP()
-	if not me then return end
-	if not allowed:GetBool() then Notify(name .. " ist auf diesem Server deaktiviert.") return end
-	local on = not Get(me, key)
-	SendSetting(me, key, on, true)
-	surface.PlaySound("buttons/blip1.wav")
-	Notify(name .. " " .. (on and "AN" or "AUS"))
-end
+	local def = HT.AbilityByID[id]
+	if not me or not def then return end
 
-local abilityInfo = {
-	chaser   = { allow = CV.allowChaser,   ready = "HT_ChaserReady",   name = "Chaser-Puls",
-		sound = "ambient/levels/citadel/weapon_disintegrate2.wav" },
-	roar     = { allow = CV.allowRoar,     ready = "HT_RoarReady",     name = "Brüllen" },
-	teleport = { allow = CV.allowTeleport, ready = "HT_TeleportReady", name = "Teleport" },
-	flash    = { allow = CV.allowFlash,    ready = "HT_FlashReady",    name = "Taschenlampen-Blitz" },
-	silent   = { allow = CV.allowSilent,   ready = "HT_SilentReady",   name = "Leise sein",
-		sound = "npc/zombie/foot_slide1.wav" },
-	decoy    = { allow = CV.allowDecoy,    ready = "HT_DecoyReady",    name = "Ablenkung",
-		sound = "weapons/slam/throw.wav" },
-}
+	if def.hunter then
+		if not HT.HunterCanAct(me) then HT.Notify("You can't use abilities right now.") return end
+		if def.kind == "toggle" then
+			local on = not HT.IsOn(me, id)
+			net.Start("HT_Ability")
+			net.WriteString(id)
+			net.SendToServer()
+			surface.PlaySound("buttons/blip1.wav")
+			HT.Notify(def.name .. (on and " ON" or " OFF"))
+			return
+		end
+	else
+		if not HT.IsVictim(me) then return end
+		if not def.allow:GetBool() then HT.Notify(def.name .. " is disabled on this server.") return end
+	end
 
-local function UseAbility(name)
-	local me = LP()
-	local info = abilityInfo[name]
-	if not me then return end
-	if not info.allow:GetBool() then Notify(info.name .. " ist auf diesem Server deaktiviert.") return end
-
-	local wait = me:GetNWFloat(info.ready, 0) - CurTime()
+	local wait = HT.ReadyIn(me, id)
 	if wait > 0 then
-		Notify(string.format("%s lädt noch (%.0fs)", info.name, wait))
+		HT.Notify(string.format("%s is not ready (%.0fs)", def.name, wait))
+		return
+	end
+
+	if id == "sounds" then
+		if HT.OpenSoundPicker then HT.OpenSoundPicker() end
 		return
 	end
 
 	net.Start("HT_Ability")
-	net.WriteUInt(HunterTools.AbilityID[name], 4)
+	net.WriteString(id)
 	net.SendToServer()
-	if info.sound then surface.PlaySound(info.sound) end
+	HT.LastUsed = id
+
+	if id == "chaser" then surface.PlaySound("ambient/levels/citadel/weapon_disintegrate2.wav")
+	elseif id == "silent" then surface.PlaySound("npc/zombie/foot_slide1.wav")
+	elseif id == "decoy" then surface.PlaySound("weapons/slam/throw.wav") end
+end
+
+-- What is on slot n for me right now (hunter loadout or victim abilities)
+function HT.SlotAbility(ply, n)
+	if HT.IsHunter(ply) then
+		local id = HT.Loadout(ply).slots[n]
+		return id and HT.AbilityByID[id]
+	end
+	local def = HT.VictimSlots[n]
+	if def and def.allow:GetBool() then return def end
+end
+
+function HT.UseSlot(n)
+	local me = LP()
+	if not me then return end
+	local def = HT.SlotAbility(me, n)
+	if not def then
+		if HT.IsHunter(me) then HT.Notify("Slot " .. n .. " is empty.") end
+		return
+	end
+	HT.UseAbility(def.id)
 end
 
 ------------------------------------------------------------------------
--- Gruselsounds
+-- Scary sounds
 ------------------------------------------------------------------------
 
-local soundNames = {}
+HT.SoundNames = {}
 
 net.Receive("HT_SoundList", function()
-	soundNames = {}
-	for i = 1, net.ReadUInt(8) do soundNames[i] = net.ReadString() end
+	HT.SoundNames = {}
+	for i = 1, net.ReadUInt(8) do HT.SoundNames[i] = net.ReadString() end
 end)
 
-local function RequestSoundList()
+function HT.RequestSoundList()
 	net.Start("HT_SoundPlay")
 	net.WriteUInt(0, 8)
 	net.WriteUInt(0, 3)
@@ -181,494 +198,23 @@ net.Receive("HT_SoundGlobal", function()
 	surface.PlaySound(net.ReadString())
 end)
 
-local function PlayScarySound(index)
+function HT.PlayScarySound(index)
 	local me = LP()
-	if not me or not index or not soundNames[index] then return end
-	if not CV.allowSounds:GetBool() then Notify("Gruselsounds sind auf diesem Server deaktiviert.") return end
-
-	local mode = soundMode:GetInt()
+	if not me or not HT.SoundNames[index] then return end
+	local mode = HT.SoundMode:GetInt()
 	if mode == 4 and not CV.soundAllowGlobal:GetBool() then
-		Notify("Der Modus \"Überall\" ist auf diesem Server verboten.")
+		HT.Notify("The 'everywhere' mode is disabled on this server.")
 		return
 	end
-
-	local wait = me:GetNWFloat("HT_SoundReady", 0) - CurTime()
-	if wait > 0 then
-		Notify(string.format("Gruselsound lädt noch (%.0fs)", wait))
-		return
-	end
-
 	net.Start("HT_SoundPlay")
 	net.WriteUInt(index, 8)
 	net.WriteUInt(mode, 3)
 	net.SendToServer()
-	Notify("Sound: " .. soundNames[index])
-end
-
-local function PlayRandomSound()
-	if #soundNames == 0 then Notify("Keine Gruselsounds gefunden.") return end
-	PlayScarySound(math.random(#soundNames))
+	HT.LastUsed = "sounds"
 end
 
 ------------------------------------------------------------------------
--- Menü-Bausteine
-------------------------------------------------------------------------
-
-local menuFrame, playerFrame, soundFrame
-local OpenMenu
-
-local function AddHeader(parent, text)
-	local h = parent:Add("DLabel")
-	h:Dock(TOP)
-	h:DockMargin(0, 10, 0, 4)
-	h:SetFont("DermaDefaultBold")
-	h:SetText(text)
-	h:SetTextColor(Color(255, 120, 60))
-end
-
-local function AddInfo(parent, text)
-	local l = parent:Add("DLabel")
-	l:Dock(TOP)
-	l:DockMargin(0, 4, 0, 4)
-	l:SetWrap(true)
-	l:SetAutoStretchVertical(true)
-	l:SetText(text)
-	l:SetTextColor(Color(200, 200, 200))
-end
-
-local function AddButton(parent, text, onClick)
-	local btn = parent:Add("DButton")
-	btn:Dock(TOP)
-	btn:DockMargin(0, 4, 0, 4)
-	btn:SetTall(28)
-	btn:SetText(text)
-	btn.DoClick = onClick
-	return btn
-end
-
-local function AddCheck(parent, label, value, onChange)
-	local c = parent:Add("DCheckBoxLabel")
-	c:Dock(TOP)
-	c:DockMargin(0, 2, 0, 6)
-	c:SetText(label)
-	c:SetTextColor(color_white)
-	c:SetValue(value)
-	c.OnChange = function(_, v) onChange(v) end
-	return c
-end
-
-local function AddSlider(parent, label, min, max, decimals, value, onChange)
-	local s = parent:Add("DNumSlider")
-	s:Dock(TOP)
-	s:DockMargin(0, 0, 0, 4)
-	s:SetText(label)
-	s:SetMinMax(min, max)
-	s:SetDecimals(decimals)
-	s:SetValue(value)
-	s.Label:SetTextColor(color_white)
-	s.OnValueChanged = function(_, v) onChange(v) end
-	return s
-end
-
--- Jäger-Einstellung von "target" (du selbst oder, als Admin, ein anderer Spieler)
-local function SettingCheck(parent, label, target, key)
-	return AddCheck(parent, label, Get(target, key), function(v) SendSetting(target, key, v) end)
-end
-
-local function SettingSlider(parent, label, target, key, decimals)
-	local s = HunterTools.SettingByKey[key]
-	return AddSlider(parent, label, s.min, math.max(s.min, s.max()), decimals, Get(target, key),
-		function(v) SendSetting(target, key, v) end)
-end
-
-local function AddBinder(parent, label, cvar)
-	local row = parent:Add("DPanel")
-	row:Dock(TOP)
-	row:DockMargin(0, 0, 0, 4)
-	row:SetTall(26)
-	row:SetPaintBackground(false)
-
-	local lbl = row:Add("DLabel")
-	lbl:Dock(LEFT)
-	lbl:SetWide(170)
-	lbl:SetText(label)
-	lbl:SetTextColor(color_white)
-
-	local binder = row:Add("DBinder")
-	binder:Dock(FILL)
-	binder:SetValue(cvar:GetInt())
-	binder.OnChange = function(_, key)
-		RunConsoleCommand(cvar:GetName(), tostring(key))
-	end
-end
-
-local function NewScroll(parent)
-	local scroll = vgui.Create("DScrollPanel", parent)
-	scroll:GetCanvas():DockPadding(8, 0, 8, 8)
-	return scroll
-end
-
-local function StyleFrame(f)
-	f.Paint = function(_, w, h)
-		draw.RoundedBox(6, 0, 0, w, h, Color(20, 20, 24, 240))
-		draw.RoundedBoxEx(6, 0, 0, w, 24, Color(140, 30, 20), true, true, false, false)
-	end
-end
-
-------------------------------------------------------------------------
--- Menü-Inhalte
-------------------------------------------------------------------------
-
--- Fähigkeiten eines Jägers (für dich selbst oder für einen anderen Spieler)
-local function BuildAbilities(parent, target)
-	AddHeader(parent, "Aim-Hilfe")
-	SettingCheck(parent, "Aim-Hilfe aktiv", target, "HT_AimOn")
-	SettingCheck(parent, "Nur beim Schießen / Zielen", target, "HT_AimOnFire")
-	SettingCheck(parent, "Auch auf NPCs / Nextbots", target, "HT_AimNPC")
-	SettingSlider(parent, "Stärke", target, "HT_AimStrength", 2)
-	SettingSlider(parent, "Winkel (Grad)", target, "HT_AimFov", 0)
-	if not CV.allowAim:GetBool() then AddInfo(parent, "Aim-Hilfe ist im Tab \"Server\" gerade verboten.") end
-
-	AddHeader(parent, "Radar (alle durch Wände)")
-	SettingCheck(parent, "Radar aktiv", target, "HT_ESP")
-	SettingCheck(parent, "Namen und Entfernung anzeigen", target, "HT_ESPNames")
-	if not CV.allowESP:GetBool() then AddInfo(parent, "Radar ist im Tab \"Server\" gerade verboten.") end
-
-	AddHeader(parent, "Chaser-Modus (Wärmebild-Puls)")
-	SettingSlider(parent, "Radius (Units)", target, "HT_ChaserCfgRadius", 0)
-	SettingSlider(parent, "Dauer (Sekunden)", target, "HT_ChaserCfgTime", 1)
-	if not CV.allowChaser:GetBool() then AddInfo(parent, "Chaser-Modus ist im Tab \"Server\" gerade verboten.") end
-
-	AddHeader(parent, "Sinne")
-	SettingCheck(parent, "Geräusch-Radar (Sprinten, Springen, Schießen)", target, "HT_NoiseOn")
-	SettingCheck(parent, "Fußspuren sehen", target, "HT_TracksOn")
-	SettingCheck(parent, "Herzschlag-Sensor", target, "HT_HeartOn")
-end
-
-local function SetHunterOnServer(ply, state)
-	net.Start("HT_AdminSetHunter")
-	net.WriteEntity(ply)
-	net.WriteBool(state)
-	net.SendToServer()
-end
-
-local function ReopenMenu(tab)
-	timer.Simple(0.3, function()
-		if IsValid(menuFrame) then menuFrame:Remove() end
-		menuFrame = nil
-		OpenMenu(tab)
-	end)
-end
-
-local function BuildHunterTab(tab)
-	local me = LP()
-	if not IsHunter() then
-		AddHeader(tab, "Du bist gerade nicht der Jäger")
-		if HunterTools.IsManager(me) then
-			AddButton(tab, "Mich zum Jäger machen", function()
-				SetHunterOnServer(me, true)
-				ReopenMenu("Jäger")
-			end)
-		else
-			AddInfo(tab, "Der Host kann dich im Menü zum Jäger machen.")
-		end
-	else
-		AddButton(tab, "Chaser-Puls jetzt auslösen", function() UseAbility("chaser") end)
-		AddButton(tab, "Brüllen", function() UseAbility("roar") end)
-		AddButton(tab, "Teleport (dorthin, wo du hinschaust)", function() UseAbility("teleport") end)
-	end
-
-	BuildAbilities(tab, me)
-
-	AddHeader(tab, "Gruselsounds")
-	if not CV.allowSounds:GetBool() then
-		AddInfo(tab, "Gruselsounds sind im Tab \"Server\" gerade verboten.")
-	else
-		local mode = tab:Add("DComboBox")
-		mode:Dock(TOP)
-		mode:DockMargin(0, 2, 0, 6)
-		mode:SetTall(24)
-		for _, m in ipairs(HunterTools.SoundModes) do
-			if m.id ~= 4 or CV.soundAllowGlobal:GetBool() then
-				mode:AddChoice("Abspielen: " .. m.name, m.id, soundMode:GetInt() == m.id)
-			end
-		end
-		mode.OnSelect = function(_, _, _, id) soundMode:SetInt(id) end
-
-		if #soundNames == 0 then
-			AddInfo(tab, "Soundliste wird geladen... Menü gleich nochmal öffnen.")
-		end
-		local grid = tab:Add("DIconLayout")
-		grid:Dock(TOP)
-		grid:SetSpaceX(4)
-		grid:SetSpaceY(4)
-		for i, name in ipairs(soundNames) do
-			local b = grid:Add("DButton")
-			b:SetSize(200, 24)
-			b:SetText(name)
-			b.DoClick = function() PlayScarySound(i) end
-		end
-		AddButton(tab, "Zufälliger Gruselsound", PlayRandomSound)
-		AddInfo(tab, "Eigene Sounds: .wav/.mp3/.ogg in den Ordner addons/hunter_tools/sound/hunter_tools/ legen (mit ★ markiert).")
-	end
-
-	AddHeader(tab, "Tasten (anklicken, dann neue Taste drücken)")
-	AddBinder(tab, "Menü öffnen", keys.menu)
-	AddBinder(tab, "Aim-Hilfe an/aus", keys.aim)
-	AddBinder(tab, "Radar an/aus", keys.esp)
-	AddBinder(tab, "Chaser-Puls", keys.chaser)
-	AddBinder(tab, "Brüllen", keys.roar)
-	AddBinder(tab, "Geräusch-Radar an/aus", keys.noise)
-	AddBinder(tab, "Fußspuren an/aus", keys.tracks)
-	AddBinder(tab, "Herzschlag an/aus", keys.heart)
-	AddBinder(tab, "Teleport", keys.teleport)
-	AddBinder(tab, "Gruselsound-Auswahl", keys.sboard)
-	AddBinder(tab, "Zufälliger Gruselsound", keys.srandom)
-end
-
-local function BuildVictimTab(tab)
-	if IsHunter() then
-		AddInfo(tab, "Du bist gerade der Jäger. Diese Fähigkeiten haben nur die Opfer.")
-	end
-
-	AddHeader(tab, "Aktive Fähigkeiten (per Taste)")
-	if CV.allowFlash:GetBool() then
-		AddButton(tab, "Taschenlampen-Blitz", function() UseAbility("flash") end)
-		AddInfo(tab, "Blendet den Jäger, wenn du ihn direkt anleuchtest und er dich gleichzeitig ansieht.")
-	end
-	if CV.allowSilent:GetBool() then
-		AddButton(tab, "Leise sein", function() UseAbility("silent") end)
-		AddInfo(tab, string.format("%.0f s unsichtbar für Geräusch-Radar, Fußspuren und Herzschlag des Jägers.", CV.silentTime:GetFloat()))
-	end
-	if CV.allowDecoy:GetBool() then
-		AddButton(tab, "Ablenkung werfen", function() UseAbility("decoy") end)
-		AddInfo(tab, "Wirft eine Dose. Wo sie aufschlägt, bekommt der Jäger einen falschen Ping.")
-	end
-
-	AddHeader(tab, "Passive Fähigkeiten (automatisch)")
-	if CV.allowAdrenaline:GetBool() then
-		AddInfo(tab, string.format("Adrenalin-Sprint: Trifft dich der Jäger, bist du %.1f s lang schneller.", CV.adrenalineTime:GetFloat()))
-	end
-	if CV.allowHide:GetBool() then
-		AddInfo(tab, string.format("Versteck-Bonus: Bleib %.0f s still in der Hocke, dann sieht dich der Jäger nicht mehr mit Radar oder Chaser-Puls.", CV.hideTime:GetFloat()))
-	end
-
-	AddHeader(tab, "Tasten (anklicken, dann neue Taste drücken)")
-	AddBinder(tab, "Menü öffnen", keys.menu)
-	AddBinder(tab, "Taschenlampen-Blitz", keys.vflash)
-	AddBinder(tab, "Leise sein", keys.vsilent)
-	AddBinder(tab, "Ablenkung werfen", keys.vdecoy)
-end
-
--- Zahnrad: Jäger-Tab eines anderen Spielers
-local function OpenPlayerSettings(ply)
-	if IsValid(playerFrame) then playerFrame:Remove() end
-	if not IsValid(ply) then return end
-
-	local f = vgui.Create("DFrame")
-	f:SetTitle("Jäger-Einstellungen: " .. ply:Nick())
-	f:SetSize(440, 520)
-	f:Center()
-	f:MakePopup()
-	StyleFrame(f)
-	playerFrame = f
-
-	local scroll = NewScroll(f)
-	scroll:Dock(FILL)
-
-	if not HunterTools.IsHunter(ply) then
-		AddInfo(scroll, ply:Nick() .. " ist gerade kein Jäger. Die Einstellungen gelten, sobald er Jäger ist.")
-	end
-	BuildAbilities(scroll, ply)
-end
-
-local function BuildPlayersTab(tab)
-	AddHeader(tab, CV.multiHunter:GetBool() and "Wer ist Jäger? (mehrere möglich)" or "Wer ist Jäger? (nur einer)")
-
-	for _, ply in ipairs(player.GetAll()) do
-		local row = tab:Add("DPanel")
-		row:Dock(TOP)
-		row:DockMargin(0, 2, 0, 4)
-		row:SetTall(24)
-		row:SetPaintBackground(false)
-
-		local gear = row:Add("DImageButton")
-		gear:Dock(RIGHT)
-		gear:DockMargin(4, 4, 4, 4)
-		gear:SetWide(16)
-		gear:SetImage("icon16/cog.png")
-		gear:SetTooltip("Jäger-Einstellungen von " .. ply:Nick())
-		gear.DoClick = function() OpenPlayerSettings(ply) end
-
-		local c = row:Add("DCheckBoxLabel")
-		c:Dock(FILL)
-		c:SetText(ply:Nick() .. (ply == LP() and "  (du)" or ""))
-		c:SetTextColor(color_white)
-		c:SetValue(HunterTools.IsHunter(ply))
-		c.OnChange = function(_, v)
-			if not IsValid(ply) then return end
-			SetHunterOnServer(ply, v)
-			ReopenMenu("Spieler")
-		end
-	end
-end
-
-local function SetServerCVar(cvar, value)
-	timer.Create("HT_SV_" .. cvar:GetName(), 0.25, 1, function()
-		net.Start("HT_AdminSetCVar")
-		net.WriteString(cvar:GetName())
-		net.WriteFloat(value)
-		net.SendToServer()
-	end)
-end
-
-local function ServerCheck(parent, label, cvar)
-	return AddCheck(parent, label, cvar:GetBool(), function(v) SetServerCVar(cvar, v and 1 or 0) end)
-end
-
-local function ServerSlider(parent, label, cvar, decimals)
-	return AddSlider(parent, label, cvar:GetMin() or 0, cvar:GetMax() or 100, decimals, cvar:GetFloat(),
-		function(v) SetServerCVar(cvar, v) end)
-end
-
-local function BuildServerTab(tab)
-	AddInfo(tab, "Diese Einstellungen gelten für alle Spieler.")
-
-	AddHeader(tab, "Jäger")
-	local multi = ServerCheck(tab, "Mehrere Jäger gleichzeitig erlauben", CV.multiHunter)
-	multi.OnChange = function(_, v)
-		SetServerCVar(CV.multiHunter, v and 1 or 0)
-		ReopenMenu("Server")
-	end
-	ServerCheck(tab, "Admins automatisch Jäger", CV.adminsAreHunters)
-
-	AddHeader(tab, "Fähigkeiten erlauben")
-	ServerCheck(tab, "Aim-Hilfe erlauben", CV.allowAim)
-	ServerCheck(tab, "Radar erlauben", CV.allowESP)
-	ServerCheck(tab, "Chaser-Modus erlauben", CV.allowChaser)
-	ServerCheck(tab, "Brüllen erlauben", CV.allowRoar)
-	ServerCheck(tab, "Geräusch-Radar erlauben", CV.allowNoise)
-	ServerCheck(tab, "Fußspuren erlauben", CV.allowTracks)
-	ServerCheck(tab, "Herzschlag-Sensor erlauben", CV.allowHeart)
-	ServerCheck(tab, "Teleport erlauben", CV.allowTeleport)
-
-	AddHeader(tab, "Grenzen")
-	ServerSlider(tab, "Max. Aim-Stärke", CV.aimMaxStrength, 2)
-	ServerSlider(tab, "Max. Aim-Winkel", CV.aimMaxFov, 0)
-	ServerSlider(tab, "Max. Chaser-Radius", CV.chaserMaxRadius, 0)
-	ServerSlider(tab, "Max. Chaser-Dauer", CV.chaserMaxTime, 1)
-	ServerSlider(tab, "Chaser-Abklingzeit", CV.chaserCooldown, 0)
-
-	AddHeader(tab, "Brüllen")
-	ServerSlider(tab, "Radius", CV.roarRadius, 0)
-	ServerSlider(tab, "Tempo der Opfer", CV.roarSlow, 2)
-	ServerSlider(tab, "Dauer (s)", CV.roarDuration, 1)
-	ServerSlider(tab, "Abklingzeit (s)", CV.roarCooldown, 0)
-
-	AddHeader(tab, "Sinne")
-	ServerSlider(tab, "Geräusch-Radar Reichweite", CV.noiseRadius, 0)
-	ServerSlider(tab, "Fußspuren Reichweite", CV.tracksRadius, 0)
-	ServerSlider(tab, "Fußspuren sichtbar (s)", CV.tracksTime, 0)
-	ServerSlider(tab, "Herzschlag hörbar ab", CV.heartRange, 0)
-
-	AddHeader(tab, "Teleport")
-	ServerSlider(tab, "Reichweite", CV.teleportRange, 0)
-	ServerSlider(tab, "Abklingzeit (s)", CV.teleportCooldown, 0)
-
-	AddHeader(tab, "Gruselsounds")
-	ServerCheck(tab, "Gruselsounds erlauben", CV.allowSounds)
-	ServerCheck(tab, "Modus \"Überall\" erlauben", CV.soundAllowGlobal)
-	ServerSlider(tab, "Abklingzeit (s)", CV.soundCooldown, 0)
-	ServerSlider(tab, "Lautstärke / Reichweite", CV.soundLevel, 0)
-	ServerSlider(tab, "Max. Entfernung \"Wo ich hinschaue\"", CV.soundRange, 0)
-
-	AddHeader(tab, "OPFER: Herzklopfen")
-	ServerCheck(tab, "Opfer hören Herzklopfen, wenn der Jäger nah ist", CV.victimHeart)
-	ServerSlider(tab, "Opfer-Herzklopfen ab Entfernung", CV.victimHeartRange, 0)
-
-	AddHeader(tab, "OPFER: Adrenalin-Sprint")
-	ServerCheck(tab, "Erlauben", CV.allowAdrenaline)
-	ServerSlider(tab, "Tempo", CV.adrenalineSpeed, 2)
-	ServerSlider(tab, "Dauer (s)", CV.adrenalineTime, 1)
-	ServerSlider(tab, "Abklingzeit (s)", CV.adrenalineCooldown, 0)
-
-	AddHeader(tab, "OPFER: Taschenlampen-Blitz")
-	ServerCheck(tab, "Erlauben", CV.allowFlash)
-	ServerSlider(tab, "Reichweite", CV.flashRange, 0)
-	ServerSlider(tab, "Blend-Dauer (s)", CV.flashTime, 1)
-	ServerSlider(tab, "Abklingzeit (s)", CV.flashCooldown, 0)
-
-	AddHeader(tab, "OPFER: Leise sein")
-	ServerCheck(tab, "Erlauben", CV.allowSilent)
-	ServerSlider(tab, "Dauer (s)", CV.silentTime, 0)
-	ServerSlider(tab, "Abklingzeit (s)", CV.silentCooldown, 0)
-
-	AddHeader(tab, "OPFER: Ablenkung")
-	ServerCheck(tab, "Erlauben", CV.allowDecoy)
-	ServerSlider(tab, "Abklingzeit (s)", CV.decoyCooldown, 0)
-
-	AddHeader(tab, "OPFER: Versteck-Bonus")
-	ServerCheck(tab, "Erlauben", CV.allowHide)
-	ServerSlider(tab, "Still hocken für (s)", CV.hideTime, 0)
-end
-
--- Schnellauswahl für Gruselsounds (Taste), schließt sich nach dem Abspielen
-local function OpenSoundboard()
-	if IsValid(soundFrame) then soundFrame:Remove() return end
-	RequestSoundList()
-	if #soundNames == 0 then Notify("Keine Gruselsounds gefunden.") return end
-
-	local f = vgui.Create("DFrame")
-	f:SetTitle("Gruselsounds (" .. HunterTools.SoundModes[soundMode:GetInt()].name .. ")")
-	f:SetSize(240, math.min(60 + #soundNames * 28, ScrH() - 100))
-	f:Center()
-	f:MakePopup()
-	StyleFrame(f)
-	soundFrame = f
-
-	local scroll = NewScroll(f)
-	scroll:Dock(FILL)
-	for i, name in ipairs(soundNames) do
-		AddButton(scroll, name, function()
-			PlayScarySound(i)
-			f:Remove()
-		end)
-	end
-end
-
-function OpenMenu(activeTab)
-	if IsValid(menuFrame) then menuFrame:Close() return end
-	RequestSoundList()
-	local manager = HunterTools.IsManager(LP())
-
-	local f = vgui.Create("DFrame")
-	f:SetTitle("Hunter Tools")
-	f:SetSize(460, 600)
-	f:Center()
-	f:MakePopup()
-	StyleFrame(f)
-	menuFrame = f
-
-	local sheet = f:Add("DPropertySheet")
-	sheet:Dock(FILL)
-
-	local function Tab(name, icon, build)
-		local scroll = NewScroll(sheet)
-		build(scroll)
-		sheet:AddSheet(name, scroll, icon)
-	end
-
-	if IsHunter() or manager then Tab("Jäger", "icon16/eye.png", BuildHunterTab) end
-	Tab("Opfer", "icon16/user.png", BuildVictimTab)
-	if manager then
-		Tab("Spieler", "icon16/group.png", BuildPlayersTab)
-		Tab("Server", "icon16/cog.png", BuildServerTab)
-	end
-	if isstring(activeTab) then sheet:SwitchToName(activeTab) end
-end
-
-------------------------------------------------------------------------
--- Keybinds
+-- Keys
 ------------------------------------------------------------------------
 
 local wasDown = {}
@@ -685,44 +231,63 @@ hook.Add("Think", "HT_Keys", function()
 	local me = LP()
 	if not me then return end
 
-	-- Immer alle Tasten abfragen, damit beim Freigeben nichts nachträglich auslöst.
+	-- always poll every key so nothing fires late when a block ends
 	local pressed = {}
-	for name, cvar in pairs(keys) do pressed[name] = JustPressed(cvar) end
+	for name, cvar in pairs(HT.Keys) do pressed[name] = JustPressed(cvar) end
 
 	if input.IsKeyTrapping() or gui.IsGameUIVisible() or gui.IsConsoleVisible() or me:IsTyping() then return end
 
-	if pressed.menu then OpenMenu() end
-	if IsValid(menuFrame) or IsValid(playerFrame) or IsValid(soundFrame) then return end
+	if pressed.menu and HT.OpenMenu then HT.OpenMenu() end
+	if HT.AnyWindowOpen and HT.AnyWindowOpen() then return end
 
-	if not HunterTools.IsHunter(me) then
-		if not HunterTools.IsVictim(me) then return end
-		if pressed.vflash then UseAbility("flash") end
-		if pressed.vsilent then UseAbility("silent") end
-		if pressed.vdecoy then UseAbility("decoy") end
-		return
+	for i = 1, HT.SLOTS do
+		if pressed["slot" .. i] then HT.UseSlot(i) end
 	end
-
-	if pressed.aim then ToggleSetting("HT_AimOn", CV.allowAim, "Aim-Hilfe") end
-	if pressed.esp then ToggleSetting("HT_ESP", CV.allowESP, "Radar") end
-	if pressed.noise then ToggleSetting("HT_NoiseOn", CV.allowNoise, "Geräusch-Radar") end
-	if pressed.tracks then ToggleSetting("HT_TracksOn", CV.allowTracks, "Fußspuren") end
-	if pressed.heart then ToggleSetting("HT_HeartOn", CV.allowHeart, "Herzschlag") end
-	if pressed.chaser then UseAbility("chaser") end
-	if pressed.roar then UseAbility("roar") end
-	if pressed.teleport then UseAbility("teleport") end
-	if pressed.sboard then OpenSoundboard() end
-	if pressed.srandom then PlayRandomSound() end
 end)
 
 ------------------------------------------------------------------------
--- Aim-Hilfe: zieht das Fadenkreuz zum nächsten sichtbaren Ziel im Winkel
+-- Targets
 ------------------------------------------------------------------------
 
-local aimTarget -- für die Anzeige im HUD
-
-local function AimActive(me)
-	return me:Alive() and HunterTools.IsHunter(me) and CV.allowAim:GetBool() and Get(me, "HT_AimOn")
+local function Targets()
+	local me, list = LP(), {}
+	if not me then return list end
+	for _, ply in ipairs(player.GetAll()) do
+		if HT.IsTarget(me, ply) and not ply:IsDormant() then list[#list + 1] = ply end
+	end
+	return list
 end
+
+-- radar and chaser don't show hidden victims
+local function SenseTargets()
+	local list = {}
+	for _, ply in ipairs(Targets()) do
+		if not HT.IsHidden(ply) then list[#list + 1] = ply end
+	end
+	return list
+end
+
+local npcCache, npcCacheTime = {}, 0
+local function NPCTargets()
+	if CurTime() - npcCacheTime > 0.5 then
+		npcCacheTime = CurTime()
+		npcCache = {}
+		for _, ent in ipairs(ents.GetAll()) do
+			if (ent:IsNPC() or ent:IsNextBot()) and ent:Health() > 0 then npcCache[#npcCache + 1] = ent end
+		end
+	end
+	local list = {}
+	for _, ent in ipairs(npcCache) do
+		if IsValid(ent) and not ent:IsDormant() and ent:Health() > 0 then list[#list + 1] = ent end
+	end
+	return list
+end
+
+------------------------------------------------------------------------
+-- Aim assist
+------------------------------------------------------------------------
+
+local aimTarget
 
 local function AimPoint(ent)
 	local bone = ent:LookupBone("ValveBiped.Bip01_Head1") or ent:LookupBone("ValveBiped.Bip01_Spine2")
@@ -747,9 +312,7 @@ local function FindAimTarget(me, eye, forward, maxFov)
 		local ang = math.deg(math.acos(math.Clamp(forward:Dot(dir), -1, 1)))
 		if ang <= maxFov and (not bestAng or ang < bestAng) then
 			local tr = util.TraceLine({ start = eye, endpos = pos, filter = me, mask = MASK_SHOT })
-			if tr.Entity == ent or tr.Fraction >= 1 then
-				best, bestPos, bestAng = ent, pos, ang
-			end
+			if tr.Entity == ent or tr.Fraction >= 1 then best, bestPos, bestAng = ent, pos, ang end
 		end
 	end
 	return best, bestPos
@@ -758,21 +321,18 @@ end
 hook.Add("CreateMove", "HT_AimAssist", function(cmd)
 	local me = LP()
 	aimTarget = nil
-	if not me or not AimActive(me) then return end
+	if not me or not HT.IsOn(me, "aim") then return end
 
 	local eye = me:EyePos()
 	local view = cmd:GetViewAngles()
 	local target, pos = FindAimTarget(me, eye, view:Forward(), Get(me, "HT_AimFov"))
 	aimTarget = target
 	if not target then return end
-
 	if Get(me, "HT_AimOnFire") and not (cmd:KeyDown(IN_ATTACK) or cmd:KeyDown(IN_ATTACK2)) then return end
 
-	local want = (pos - eye):Angle()
 	local strength = Get(me, "HT_AimStrength")
 	if strength <= 0 then return end
-
-	-- Bildraten-unabhängiges Nachziehen (Stärke 1 = sofort auf dem Ziel)
+	local want = (pos - eye):Angle()
 	local f = strength >= 1 and 1 or 1 - (1 - strength) ^ (FrameTime() * 30)
 
 	local new = Angle(
@@ -786,37 +346,23 @@ hook.Add("CreateMove", "HT_AimAssist", function(cmd)
 end)
 
 ------------------------------------------------------------------------
--- Radar (Umriss durch Wände) + Chaser (Wärmebild im Radius)
+-- Radar outline + chaser thermal
 ------------------------------------------------------------------------
 
--- Radar-Ziele: alle außer versteckten Opfern
-local function ESPTargets()
-	local list = {}
-	for _, ply in ipairs(Targets()) do
-		if not HunterTools.IsHidden(ply) then list[#list + 1] = ply end
-	end
-	return list
-end
-
-local function ESPOn(me)
-	return Get(me, "HT_ESP") and CV.allowESP:GetBool()
-end
-
 local function ChaserTargets(me)
-	if not HunterTools.ChaserActive(me) or not CV.allowChaser:GetBool() then return {} end
+	if not HT.IsActive(me, "chaser") then return {} end
 	local radiusSqr = me:GetNWFloat("HT_ChaserRadius", 0) ^ 2
 	local origin, list = me:GetPos(), {}
-	for _, ply in ipairs(Targets()) do
-		if not HunterTools.IsHidden(ply) and origin:DistToSqr(ply:GetPos()) <= radiusSqr then list[#list + 1] = ply end
+	for _, ply in ipairs(SenseTargets()) do
+		if origin:DistToSqr(ply:GetPos()) <= radiusSqr then list[#list + 1] = ply end
 	end
 	return list
 end
 
 hook.Add("PreDrawHalos", "HT_Halos", function()
 	local me = LP()
-	if not me or not HunterTools.IsHunter(me) then return end
-	if ESPOn(me) then
-		halo.Add(ESPTargets(), Color(255, 40, 40), 2, 2, 1, true, true)
+	if me and HT.IsOn(me, "radar") then
+		halo.Add(SenseTargets(), Color(255, 40, 40), 2, 2, 1, true, true)
 	end
 end)
 
@@ -825,14 +371,11 @@ local thermalMat = Material("models/debug/debugwhite")
 hook.Add("PostDrawTranslucentRenderables", "HT_Thermal", function(depth, sky)
 	if depth or sky then return end
 	local me = LP()
-	if not me or not HunterTools.IsHunter(me) then return end
+	if not me or not HT.IsHunter(me) then return end
 
 	local targets = ChaserTargets(me)
 	if #targets == 0 then return end
-
-	-- In der letzten Sekunde ausblenden
-	local left = me:GetNWFloat("HT_ChaserUntil", 0) - CurTime()
-	local alpha = math.Clamp(left, 0, 1)
+	local alpha = math.Clamp(HT.ActiveLeft(me, "chaser"), 0, 1)
 
 	cam.IgnoreZ(true)
 	render.SuppressEngineLighting(true)
@@ -850,95 +393,11 @@ hook.Add("PostDrawTranslucentRenderables", "HT_Thermal", function(depth, sky)
 end)
 
 ------------------------------------------------------------------------
--- HUD
-------------------------------------------------------------------------
-
-local UNIT_TO_M = 0.01905
-
-local function DrawAimCircle(me)
-	-- Kreis zeigt den Aim-Hilfe-Winkel; grün, sobald ein Ziel erfasst ist.
-	local fov = Get(me, "HT_AimFov")
-	local viewFov = me:GetFOV()
-	local radius = math.tan(math.rad(fov)) / math.tan(math.rad(viewFov / 2)) * ScrH() * 2 / 3
-	local col = IsValid(aimTarget) and Color(80, 255, 80, 160) or Color(255, 255, 255, 60)
-	surface.DrawCircle(ScrW() / 2, ScrH() / 2, radius, col)
-
-	if IsValid(aimTarget) then
-		local p = AimPoint(aimTarget):ToScreen()
-		if p.visible then
-			surface.SetDrawColor(80, 255, 80, 200)
-			surface.DrawOutlinedRect(p.x - 5, p.y - 5, 10, 10)
-		end
-	end
-end
-
-hook.Add("HUDPaint", "HT_HUD", function()
-	local me = LP()
-	if not me or not HunterTools.IsHunter(me) then return end
-
-	local now = CurTime()
-	local aimOn = AimActive(me)
-	local lines = {
-		{ "JÄGER", Color(255, 80, 40) },
-		{ "Aim: " .. (aimOn and "AN" or "AUS"), color_white },
-		{ "Radar: " .. (ESPOn(me) and "AN" or "AUS"), color_white },
-	}
-	local until_ = me:GetNWFloat("HT_ChaserUntil", 0)
-	local ready = me:GetNWFloat("HT_ChaserReady", 0)
-	if until_ > now then
-		lines[#lines + 1] = { string.format("Chaser: AKTIV %.1fs", until_ - now), Color(255, 140, 40) }
-	elseif ready > now then
-		lines[#lines + 1] = { string.format("Chaser: lädt %.0fs", ready - now), Color(160, 160, 160) }
-	else
-		lines[#lines + 1] = { "Chaser: bereit", Color(120, 255, 120) }
-	end
-
-	for _, a in ipairs({
-		{ "Brüllen", "HT_RoarReady", CV.allowRoar },
-		{ "Teleport", "HT_TeleportReady", CV.allowTeleport },
-		{ "Gruselsound", "HT_SoundReady", CV.allowSounds },
-	}) do
-		if a[3]:GetBool() then
-			local r = me:GetNWFloat(a[2], 0)
-			if r > now then
-				lines[#lines + 1] = { string.format("%s: lädt %.0fs", a[1], r - now), Color(160, 160, 160) }
-			else
-				lines[#lines + 1] = { a[1] .. ": bereit", Color(120, 255, 120) }
-			end
-		end
-	end
-
-	local senses = {}
-	if Get(me, "HT_NoiseOn") and CV.allowNoise:GetBool() then senses[#senses + 1] = "Geräusche" end
-	if Get(me, "HT_TracksOn") and CV.allowTracks:GetBool() then senses[#senses + 1] = "Spuren" end
-	if Get(me, "HT_HeartOn") and CV.allowHeart:GetBool() then senses[#senses + 1] = "Herzschlag" end
-	if #senses > 0 then lines[#lines + 1] = { "Sinne: " .. table.concat(senses, ", "), color_white } end
-
-	for i, l in ipairs(lines) do
-		draw.SimpleTextOutlined(l[1], "DermaDefaultBold", 20, 20 + (i - 1) * 16, l[2], TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP, 1, color_black)
-	end
-
-	if aimOn then DrawAimCircle(me) end
-
-	if ESPOn(me) and Get(me, "HT_ESPNames") then
-		for _, ply in ipairs(ESPTargets()) do
-			local pos = (ply:GetPos() + Vector(0, 0, 80)):ToScreen()
-			if pos.visible then
-				local dist = math.Round(me:GetPos():Distance(ply:GetPos()) * UNIT_TO_M)
-				draw.SimpleTextOutlined(ply:Nick() .. " [" .. dist .. "m]", "DermaDefault", pos.x, pos.y,
-					Color(255, 80, 80), TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM, 1, color_black)
-			end
-		end
-	end
-end)
-
-------------------------------------------------------------------------
--- Brüllen: Wirkung beim Opfer (Bildschirm wackelt, rote Tönung)
+-- Roar (victim side), flashlight blind (hunter side)
 ------------------------------------------------------------------------
 
 net.Receive("HT_Roared", function()
-	local duration = net.ReadFloat()
-	util.ScreenShake(LocalPlayer():GetPos(), 12, 8, duration, 200)
+	util.ScreenShake(LocalPlayer():GetPos(), 12, 8, net.ReadFloat(), 200)
 end)
 
 hook.Add("RenderScreenspaceEffects", "HT_RoarTint", function()
@@ -948,38 +407,38 @@ hook.Add("RenderScreenspaceEffects", "HT_RoarTint", function()
 	if left <= 0 then return end
 	local k = math.Clamp(left, 0, 1)
 	DrawColorModify({
-		["$pp_colour_addr"] = 0.12 * k,
-		["$pp_colour_addg"] = 0,
-		["$pp_colour_addb"] = 0,
-		["$pp_colour_brightness"] = -0.05 * k,
-		["$pp_colour_contrast"] = 1 + 0.2 * k,
+		["$pp_colour_addr"] = 0.12 * k, ["$pp_colour_addg"] = 0, ["$pp_colour_addb"] = 0,
+		["$pp_colour_brightness"] = -0.05 * k, ["$pp_colour_contrast"] = 1 + 0.2 * k,
 		["$pp_colour_colour"] = 1 - 0.5 * k,
-		["$pp_colour_mulr"] = 0,
-		["$pp_colour_mulg"] = 0,
-		["$pp_colour_mulb"] = 0,
+		["$pp_colour_mulr"] = 0, ["$pp_colour_mulg"] = 0, ["$pp_colour_mulb"] = 0,
 	})
 end)
 
+local blindUntil, blindTime = 0, 1
+
+net.Receive("HT_Blind", function()
+	blindTime = net.ReadFloat()
+	blindUntil = CurTime() + blindTime
+	surface.PlaySound("ambient/energy/zap1.wav")
+end)
+
 ------------------------------------------------------------------------
--- Geräusch-Radar: kurze Pings an Orten, an denen jemand Lärm gemacht hat
+-- Noise radar pings
 ------------------------------------------------------------------------
 
 local PING_TIME = 2.5
 local pingStyle = {
-	{ label = "Rennen",  color = Color(255, 200, 60) },
-	{ label = "Sprung",  color = Color(120, 200, 255) },
-	{ label = "Schuss",  color = Color(255, 60, 60) },
+	{ label = "Running", color = Color(255, 200, 60) },
+	{ label = "Jump",    color = Color(120, 200, 255) },
+	{ label = "Shot",    color = Color(255, 60, 60) },
 }
 local pings = {}
 
 net.Receive("HT_Ping", function()
-	local pos = net.ReadVector()
-	local kind = net.ReadUInt(2)
-	pings[#pings + 1] = { pos = pos, kind = kind, time = CurTime() }
+	pings[#pings + 1] = { pos = net.ReadVector(), kind = net.ReadUInt(2), time = CurTime() }
 end)
 
-hook.Add("HUDPaint", "HT_Pings", function()
-	if #pings == 0 then return end
+local function DrawPings()
 	local now = CurTime()
 	for i = #pings, 1, -1 do
 		local p = pings[i]
@@ -999,10 +458,10 @@ hook.Add("HUDPaint", "HT_Pings", function()
 			end
 		end
 	end
-end)
+end
 
 ------------------------------------------------------------------------
--- Fußspuren: leuchtende Abdrücke am Boden, nur für den Jäger
+-- Footprints
 ------------------------------------------------------------------------
 
 local footMat = Material("sprites/light_glow02_add")
@@ -1021,7 +480,6 @@ hook.Add("PostDrawTranslucentRenderables", "HT_Tracks", function(depth, sky)
 	if depth or sky or #prints == 0 then return end
 	local now, life = CurTime(), CV.tracksTime:GetFloat()
 	local up = Vector(0, 0, 1)
-
 	render.SetMaterial(footMat)
 	for i = #prints, 1, -1 do
 		local p = prints[i]
@@ -1029,15 +487,13 @@ hook.Add("PostDrawTranslucentRenderables", "HT_Tracks", function(depth, sky)
 		if age > life then
 			table.remove(prints, i)
 		else
-			local a = 255 * (1 - age / life)
-			render.DrawQuadEasy(p.pos, up, 10, 16, Color(60, 200, 255, a), p.yaw)
+			render.DrawQuadEasy(p.pos, up, 10, 16, Color(60, 200, 255, 255 * (1 - age / life)), p.yaw)
 		end
 	end
 end)
 
 ------------------------------------------------------------------------
--- Herzschlag: je näher das nächste Opfer, desto schneller und lauter.
--- Opfer hören (wenn im Server-Tab erlaubt) ihr eigenes Herzklopfen, sobald ein Jäger nah ist.
+-- Heartbeat (hunter sensor and victim heartbeat)
 ------------------------------------------------------------------------
 
 local HEART_SOUND = "physics/body/body_medium_impact_soft1.wav"
@@ -1053,15 +509,14 @@ hook.Add("Think", "HT_Heartbeat", function()
 	if not me or not me:Alive() then return end
 
 	local range
-	if HunterTools.IsHunter(me) then
-		if not Get(me, "HT_HeartOn") or not CV.allowHeart:GetBool() then return end
+	if HT.IsHunter(me) then
+		if not HT.IsOn(me, "heart") then return end
 		range = CV.heartRange:GetFloat()
 	else
 		if not CV.victimHeart:GetBool() then return end
 		range = CV.victimHeartRange:GetFloat()
 	end
-	if CurTime() - heartTime > 1 then return end -- keine aktuellen Daten
-
+	if CurTime() - heartTime > 1 then return end
 	if heartDist < 0 or heartDist > range then return end
 
 	local now = CurTime()
@@ -1069,7 +524,6 @@ hook.Add("Think", "HT_Heartbeat", function()
 
 	local closeness = 1 - heartDist / range
 	nextBeat = now + Lerp(closeness, 1.4, 0.35)
-
 	local vol = Lerp(closeness, 0.25, 1)
 	me:EmitSound(HEART_SOUND, 75, 60, vol, CHAN_STATIC)
 	timer.Simple(0.16, function()
@@ -1078,62 +532,204 @@ hook.Add("Think", "HT_Heartbeat", function()
 end)
 
 ------------------------------------------------------------------------
--- Taschenlampen-Blitz: Jäger ist kurz geblendet
+-- HUD
 ------------------------------------------------------------------------
 
-local blindUntil, blindTime = 0, 1
+local ROW_H, ROW_GAP = 26, 4
+local cdMax = {}
 
-net.Receive("HT_Blind", function()
-	blindTime = net.ReadFloat()
-	blindUntil = CurTime() + blindTime
-	surface.PlaySound("ambient/energy/zap1.wav")
-end)
+-- One HUD row: slot number, name, status, key
+local function DrawRow(x, y, w, num, name, nameCol, status, statusCol, key, frac, outline)
+	draw.RoundedBox(4, x, y, w, ROW_H, C.panel)
+	surface.SetDrawColor(outline or C.line)
+	surface.DrawOutlinedRect(x, y, w, ROW_H)
 
-hook.Add("HUDPaint", "HT_Blind", function()
-	local left = blindUntil - CurTime()
-	if left <= 0 then return end
-	-- erst voll weiß, in der zweiten Hälfte ausblenden
-	local a = math.Clamp(left / blindTime * 2, 0, 1) * 255
-	surface.SetDrawColor(255, 255, 255, a)
-	surface.DrawRect(0, 0, ScrW(), ScrH())
-end)
+	draw.SimpleText(num, "HT_RowBold", x + 13, y + ROW_H / 2, C.faint, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	draw.SimpleText(name, "HT_Row", x + 28, y + ROW_H / 2, nameCol or C.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 
-------------------------------------------------------------------------
--- Opfer-HUD
-------------------------------------------------------------------------
+	local right = x + w - 6
+	if key then
+		surface.SetFont("HT_Key")
+		local kw = surface.GetTextSize(key) + 10
+		draw.RoundedBox(3, right - kw, y + 4, kw, ROW_H - 8, Color(43, 34, 35))
+		draw.SimpleText(key, "HT_Key", right - kw / 2, y + ROW_H / 2, C.text, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		right = right - kw - 8
+	end
+	if status then
+		draw.SimpleText(status, "HT_Key", right, y + ROW_H / 2, statusCol or C.muted, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+	end
+	if frac then
+		surface.SetDrawColor(outline or C.muted)
+		surface.DrawRect(x + 2, y + ROW_H - 3, (w - 4) * math.Clamp(frac, 0, 1), 2)
+	end
+end
 
-hook.Add("HUDPaint", "HT_VictimHUD", function()
-	local me = LP()
-	if not me or not HunterTools.IsVictim(me) then return end
+-- Status text for an ability; returns status, color, progress, outline
+local function AbilityStatus(me, def)
+	if def.kind == "toggle" then
+		if HT.IsOn(me, def.id) then return "ON", C.good end
+		return "OFF", C.faint
+	end
+	if HT.IsActive(me, def.id) then
+		return string.format("ACTIVE %.1fs", HT.ActiveLeft(me, def.id)), C.cold, nil, C.cold
+	end
+	local ready = HT.ReadyIn(me, def.id)
+	if ready > 0 then
+		cdMax[def.id] = math.max(cdMax[def.id] or 0, ready)
+		return string.format("%ds", math.ceil(ready)), C.muted, ready / cdMax[def.id]
+	end
+	cdMax[def.id] = nil
+	return "READY", C.good
+end
 
-	local now = CurTime()
-	local lines = {}
+local function DrawRoundTimer()
+	local phase = HT.Phase()
+	if phase ~= "prep" and phase ~= "hunt" then return end
+	local left = HT.PhaseEnd() - CurTime()
+	local x = ScrW() / 2
 
-	local function cooldownLine(name, ready, allow, activeUntil)
-		if not allow:GetBool() then return end
-		local r = me:GetNWFloat(ready, 0)
-		if activeUntil and me:GetNWFloat(activeUntil, 0) > now then
-			lines[#lines + 1] = { string.format("%s: AKTIV %.1fs", name, me:GetNWFloat(activeUntil, 0) - now), Color(120, 200, 255) }
-		elseif r > now then
-			lines[#lines + 1] = { string.format("%s: lädt %.0fs", name, r - now), Color(160, 160, 160) }
+	draw.SimpleTextOutlined(HT.FormatTime(left), "HT_Timer", x, 12, phase == "prep" and C.warn or C.text,
+		TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP, 2, color_black)
+	local sub = phase == "prep" and "HIDE! THE HUNT STARTS SOON" or nil
+	local y = 80
+	if sub then
+		draw.SimpleTextOutlined(sub, "HT_Sub", x, y, C.warn, TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP, 1, color_black)
+		y = y + 22
+	end
+	local names = GetGlobalString("HT_HunterNames", "")
+	if names ~= "" then
+		draw.SimpleTextOutlined(string.upper((string.find(names, ",") and "Hunters: " or "Hunter: ") .. names),
+			"HT_Sub", x, y, Color(233, 165, 158), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP, 1, color_black)
+	end
+end
+
+local function DrawHunterHUD(me)
+	local w = 300
+	local x, y = ScrW() - w - 20, 20
+	local lo = HT.Loadout(me)
+
+	for i = 1, HT.SLOTS do
+		local id = lo.slots[i]
+		local def = id and HT.AbilityByID[id]
+		local key = HT.KeyName(HT.Keys["slot" .. i]:GetInt())
+		if def then
+			local status, col, frac, outline = AbilityStatus(me, def)
+			DrawRow(x, y, w, tostring(i), def.name, frac and C.muted or C.text, status, col, key, frac, outline)
 		else
-			lines[#lines + 1] = { name .. ": bereit", Color(120, 255, 120) }
+			DrawRow(x, y, w, tostring(i), "— empty —", C.faint, nil, nil, key)
+		end
+		y = y + ROW_H + ROW_GAP
+	end
+
+	DrawRow(x, y, w, "≡", "Hunter menu", C.text, nil, nil, HT.KeyName(HT.Keys.menu:GetInt()))
+	y = y + ROW_H + ROW_GAP
+
+	-- last used ability: running, then cooling down
+	local last = HT.LastUsed and HT.AbilityByID[HT.LastUsed]
+	if last and lo.state[last.id] then
+		local text, col
+		if HT.IsActive(me, last.id) then
+			text, col = string.format("%s active  %.1fs", last.name, HT.ActiveLeft(me, last.id)), C.cold
+		elseif HT.ReadyIn(me, last.id) > 0 then
+			text, col = string.format("%s cooldown  %ds", last.name, math.ceil(HT.ReadyIn(me, last.id))), C.muted
+		end
+		if text then
+			DrawRow(x, y, w, "↻", text, col, nil, nil, nil, nil, col)
+			y = y + ROW_H + ROW_GAP
 		end
 	end
 
-	cooldownLine("Blitz", "HT_FlashReady", CV.allowFlash)
-	cooldownLine("Leise", "HT_SilentReady", CV.allowSilent, "HT_SilentUntil")
-	cooldownLine("Ablenkung", "HT_DecoyReady", CV.allowDecoy)
-
-	if me:GetNWFloat("HT_BoostUntil", 0) > now then
-		lines[#lines + 1] = { "ADRENALIN!", Color(255, 200, 60) }
+	local passive = {}
+	for _, def in ipairs(HT.HunterAbilities) do
+		if lo.state[def.id] == "p" then passive[#passive + 1] = def.name end
 	end
-	if HunterTools.IsHidden(me) then
-		lines[#lines + 1] = { "VERSTECKT", Color(120, 255, 120) }
+	local role = me:GetNWString("HT_RoleName", "")
+	draw.SimpleTextOutlined(role ~= "" and ("Role: " .. role) or "", "HT_Row", x + w, y + 2, C.muted, TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP, 1, color_black)
+	if #passive > 0 then
+		draw.SimpleTextOutlined("Passive: " .. table.concat(passive, ", "), "HT_Row", x + w, y + 20, C.good,
+			TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP, 1, color_black)
+	end
+end
+
+local function DrawVictimHUD(me)
+	local w = 260
+	local rows = {}
+	for i = 1, HT.SLOTS do
+		local def = HT.SlotAbility(me, i)
+		if def then rows[#rows + 1] = { i, def } end
+	end
+	local extra = {}
+	if me:GetNWFloat("HT_BoostUntil", 0) > CurTime() then extra[#extra + 1] = { "ADRENALINE", C.warn } end
+	if HT.IsHidden(me) then extra[#extra + 1] = { "HIDDEN", C.good } end
+
+	local x = 20
+	local y = ScrH() - 150 - (#rows + #extra) * (ROW_H + ROW_GAP)
+	for _, r in ipairs(rows) do
+		local status, col, frac, outline = AbilityStatus(me, r[2])
+		DrawRow(x, y, w, tostring(r[1]), r[2].name, frac and C.muted or C.text, status, col,
+			HT.KeyName(HT.Keys["slot" .. r[1]]:GetInt()), frac, outline)
+		y = y + ROW_H + ROW_GAP
+	end
+	for _, e in ipairs(extra) do
+		DrawRow(x, y, w, "★", e[1], e[2], nil, nil, nil, nil, e[2])
+		y = y + ROW_H + ROW_GAP
+	end
+end
+
+local function DrawAimCircle(me)
+	local fov = Get(me, "HT_AimFov")
+	local radius = math.tan(math.rad(fov)) / math.tan(math.rad(me:GetFOV() / 2)) * ScrH() * 2 / 3
+	surface.DrawCircle(ScrW() / 2, ScrH() / 2, radius, IsValid(aimTarget) and Color(80, 255, 80, 160) or Color(255, 255, 255, 60))
+	if IsValid(aimTarget) then
+		local p = AimPoint(aimTarget):ToScreen()
+		if p.visible then
+			surface.SetDrawColor(80, 255, 80, 200)
+			surface.DrawOutlinedRect(p.x - 5, p.y - 5, 10, 10)
+		end
+	end
+end
+
+-- Hunter is blind during the hiding phase
+hook.Add("HUDPaintBackground", "HT_PrepBlind", function()
+	local me = LP()
+	if not me or not HT.IsHunter(me) or HT.Phase() ~= "prep" then return end
+	surface.SetDrawColor(0, 0, 0, 252)
+	surface.DrawRect(0, 0, ScrW(), ScrH())
+	draw.SimpleText("YOU ARE THE HUNTER", "HT_Big", ScrW() / 2, ScrH() / 2 - 30, C.accent, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	draw.SimpleText("Role: " .. me:GetNWString("HT_RoleName", "?") .. "   ·   The victims are hiding.",
+		"HT_Sub", ScrW() / 2, ScrH() / 2 + 14, C.muted, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+end)
+
+local UNIT_TO_M = 0.01905
+
+hook.Add("HUDPaint", "HT_HUD", function()
+	local me = LP()
+	if not me then return end
+
+	DrawRoundTimer()
+
+	if HT.IsHunter(me) then
+		if me:Alive() then DrawHunterHUD(me) end
+		if HT.IsOn(me, "aim") then DrawAimCircle(me) end
+		if HT.IsOn(me, "radar") and Get(me, "HT_ESPNames") then
+			for _, ply in ipairs(SenseTargets()) do
+				local pos = (ply:GetPos() + Vector(0, 0, 80)):ToScreen()
+				if pos.visible then
+					local dist = math.Round(me:GetPos():Distance(ply:GetPos()) * UNIT_TO_M)
+					draw.SimpleTextOutlined(ply:Nick() .. " [" .. dist .. "m]", "DermaDefault", pos.x, pos.y,
+						Color(255, 80, 80), TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM, 1, color_black)
+				end
+			end
+		end
+		DrawPings()
+	elseif HT.IsVictim(me) then
+		DrawVictimHUD(me)
 	end
 
-	local y = ScrH() - 140 - #lines * 16
-	for i, l in ipairs(lines) do
-		draw.SimpleTextOutlined(l[1], "DermaDefaultBold", 20, y + (i - 1) * 16, l[2], TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP, 1, color_black)
+	-- flashlight blind: white screen, fades out in the second half
+	local left = blindUntil - CurTime()
+	if left > 0 then
+		surface.SetDrawColor(255, 255, 255, math.Clamp(left / blindTime * 2, 0, 1) * 255)
+		surface.DrawRect(0, 0, ScrW(), ScrH())
 	end
 end)

@@ -1,153 +1,281 @@
--- Hunter Tools: Gemeinsame Einstellungen (Server + Client)
--- Server-ConVars legen die Obergrenzen fest; die Jäger-Einstellungen liegen pro Spieler auf dem Server.
+-- Hunter Tools: shared definitions (server + client)
 
 HunterTools = HunterTools or {}
+local HT = HunterTools
 
 local SV_FLAGS = { FCVAR_ARCHIVE, FCVAR_REPLICATED, FCVAR_NOTIFY }
 
-HunterTools.CV = {
-	allowAim         = CreateConVar("ht_allow_aim", "1", SV_FLAGS, "Aim-Hilfe für den Jäger erlauben", 0, 1),
-	allowESP         = CreateConVar("ht_allow_esp", "1", SV_FLAGS, "Radar (alle durch Wände sehen) für den Jäger erlauben", 0, 1),
-	allowChaser      = CreateConVar("ht_allow_chaser", "1", SV_FLAGS, "Chaser-Modus (Wärmebild-Puls) erlauben", 0, 1),
-	multiHunter      = CreateConVar("ht_multi_hunter", "0", SV_FLAGS, "Mehrere Jäger gleichzeitig erlauben", 0, 1),
-	aimMaxStrength   = CreateConVar("ht_aim_max_strength", "0.8", SV_FLAGS, "Maximale Stärke der Aim-Hilfe (0-1)", 0, 1),
-	aimMaxFov        = CreateConVar("ht_aim_max_fov", "20", SV_FLAGS, "Maximaler Aim-Hilfe-Winkel in Grad", 1, 45),
-	chaserMaxRadius  = CreateConVar("ht_chaser_max_radius", "3000", SV_FLAGS, "Maximaler Chaser-Radius in Units", 100, 20000),
-	chaserMaxTime    = CreateConVar("ht_chaser_max_duration", "10", SV_FLAGS, "Maximale Chaser-Dauer in Sekunden", 1, 60),
-	chaserCooldown   = CreateConVar("ht_chaser_cooldown", "15", SV_FLAGS, "Abklingzeit nach einem Chaser-Puls in Sekunden", 0, 600),
-	adminsAreHunters = CreateConVar("ht_admins_are_hunters", "0", SV_FLAGS, "Admins werden beim Joinen automatisch Jäger", 0, 1),
+-- Values for every ability. Which abilities a hunter has is decided by roles (see Game tab).
+HT.CV = {
+	aimMaxStrength     = CreateConVar("ht_aim_max_strength", "0.8", SV_FLAGS, "Aim assist: max strength (0-1)", 0, 1),
+	aimMaxFov          = CreateConVar("ht_aim_max_fov", "20", SV_FLAGS, "Aim assist: max angle in degrees", 1, 45),
+	chaserMaxRadius    = CreateConVar("ht_chaser_max_radius", "3000", SV_FLAGS, "Chaser pulse: max radius in units", 100, 20000),
+	chaserMaxTime      = CreateConVar("ht_chaser_max_duration", "10", SV_FLAGS, "Chaser pulse: max duration in seconds", 1, 60),
+	chaserCooldown     = CreateConVar("ht_chaser_cooldown", "15", SV_FLAGS, "Chaser pulse: cooldown in seconds", 0, 600),
 
-	allowRoar        = CreateConVar("ht_allow_roar", "1", SV_FLAGS, "Brüllen erlauben", 0, 1),
-	roarRadius       = CreateConVar("ht_roar_radius", "600", SV_FLAGS, "Brüllen: Radius in Units", 100, 3000),
-	roarSlow         = CreateConVar("ht_roar_slow", "0.5", SV_FLAGS, "Brüllen: Tempo der Opfer (0.5 = halb so schnell)", 0.1, 1),
-	roarDuration     = CreateConVar("ht_roar_duration", "3", SV_FLAGS, "Brüllen: Dauer der Verlangsamung in Sekunden", 0.5, 10),
-	roarCooldown     = CreateConVar("ht_roar_cooldown", "30", SV_FLAGS, "Brüllen: Abklingzeit in Sekunden", 0, 600),
+	roarRadius         = CreateConVar("ht_roar_radius", "600", SV_FLAGS, "Roar: radius in units", 100, 3000),
+	roarSlow           = CreateConVar("ht_roar_slow", "0.5", SV_FLAGS, "Roar: victim speed (0.5 = half speed)", 0.1, 1),
+	roarDuration       = CreateConVar("ht_roar_duration", "3", SV_FLAGS, "Roar: slow duration in seconds", 0.5, 10),
+	roarCooldown       = CreateConVar("ht_roar_cooldown", "30", SV_FLAGS, "Roar: cooldown in seconds", 0, 600),
 
-	allowNoise       = CreateConVar("ht_allow_noise", "1", SV_FLAGS, "Geräusch-Radar erlauben", 0, 1),
-	noiseRadius      = CreateConVar("ht_noise_radius", "2500", SV_FLAGS, "Geräusch-Radar: Reichweite in Units", 200, 20000),
+	noiseRadius        = CreateConVar("ht_noise_radius", "2500", SV_FLAGS, "Noise radar: range in units", 200, 20000),
+	tracksRadius       = CreateConVar("ht_tracks_radius", "3000", SV_FLAGS, "Footprints: range in units", 200, 20000),
+	tracksTime         = CreateConVar("ht_tracks_time", "8", SV_FLAGS, "Footprints: visible for seconds", 1, 30),
+	heartRange         = CreateConVar("ht_heart_range", "1500", SV_FLAGS, "Heartbeat sensor: audible from this distance", 200, 5000),
 
-	allowTracks      = CreateConVar("ht_allow_tracks", "1", SV_FLAGS, "Fußspuren erlauben", 0, 1),
-	tracksRadius     = CreateConVar("ht_tracks_radius", "3000", SV_FLAGS, "Fußspuren: Reichweite in Units", 200, 20000),
-	tracksTime       = CreateConVar("ht_tracks_time", "8", SV_FLAGS, "Fußspuren: sichtbar für Sekunden", 1, 30),
+	teleportRange      = CreateConVar("ht_teleport_range", "800", SV_FLAGS, "Teleport: max range in units", 100, 5000),
+	teleportCooldown   = CreateConVar("ht_teleport_cooldown", "45", SV_FLAGS, "Teleport: cooldown in seconds", 0, 600),
 
-	allowHeart       = CreateConVar("ht_allow_heart", "1", SV_FLAGS, "Herzschlag-Sensor erlauben", 0, 1),
-	heartRange       = CreateConVar("ht_heart_range", "1500", SV_FLAGS, "Herzschlag: ab dieser Entfernung hörbar", 200, 5000),
-	victimHeart      = CreateConVar("ht_victim_heart", "0", SV_FLAGS, "Opfer hören Herzklopfen, wenn ein Jäger in der Nähe ist", 0, 1),
-	victimHeartRange = CreateConVar("ht_victim_heart_range", "1000", SV_FLAGS, "Opfer-Herzklopfen: ab dieser Entfernung zum Jäger", 200, 5000),
+	soundCooldown      = CreateConVar("ht_sound_cooldown", "10", SV_FLAGS, "Scary sounds: cooldown in seconds", 0, 300),
+	soundLevel         = CreateConVar("ht_sound_level", "85", SV_FLAGS, "Scary sounds: volume / reach (60 quiet - 140 very far)", 60, 140),
+	soundRange         = CreateConVar("ht_sound_range", "2000", SV_FLAGS, "Scary sounds: max distance for 'where I look'", 200, 10000),
+	soundAllowGlobal   = CreateConVar("ht_sound_allow_global", "1", SV_FLAGS, "Scary sounds: allow 'everywhere' mode", 0, 1),
 
-	allowTeleport    = CreateConVar("ht_allow_teleport", "1", SV_FLAGS, "Teleport erlauben", 0, 1),
-	teleportRange    = CreateConVar("ht_teleport_range", "800", SV_FLAGS, "Teleport: maximale Reichweite in Units", 100, 5000),
-	teleportCooldown = CreateConVar("ht_teleport_cooldown", "45", SV_FLAGS, "Teleport: Abklingzeit in Sekunden", 0, 600),
+	victimHeart        = CreateConVar("ht_victim_heart", "0", SV_FLAGS, "Victims hear a heartbeat when a hunter is near", 0, 1),
+	victimHeartRange   = CreateConVar("ht_victim_heart_range", "1000", SV_FLAGS, "Victim heartbeat: starts at this distance", 200, 5000),
 
-	allowSounds      = CreateConVar("ht_allow_sounds", "1", SV_FLAGS, "Gruselsounds für den Jäger erlauben", 0, 1),
-	soundCooldown    = CreateConVar("ht_sound_cooldown", "10", SV_FLAGS, "Gruselsounds: Abklingzeit in Sekunden", 0, 300),
-	soundLevel       = CreateConVar("ht_sound_level", "85", SV_FLAGS, "Gruselsounds: Lautstärke/Reichweite (60 leise - 140 sehr weit)", 60, 140),
-	soundRange       = CreateConVar("ht_sound_range", "2000", SV_FLAGS, "Gruselsounds: max. Entfernung für \"Wo ich hinschaue\"", 200, 10000),
-	soundAllowGlobal = CreateConVar("ht_sound_allow_global", "1", SV_FLAGS, "Gruselsounds: Modus \"Überall\" erlauben", 0, 1),
+	allowAdrenaline    = CreateConVar("ht_allow_adrenaline", "1", SV_FLAGS, "Victims: adrenaline after being hit", 0, 1),
+	adrenalineSpeed    = CreateConVar("ht_adrenaline_speed", "1.5", SV_FLAGS, "Adrenaline: speed multiplier", 1, 3),
+	adrenalineTime     = CreateConVar("ht_adrenaline_time", "3", SV_FLAGS, "Adrenaline: duration in seconds", 0.5, 10),
+	adrenalineCooldown = CreateConVar("ht_adrenaline_cooldown", "20", SV_FLAGS, "Adrenaline: cooldown in seconds", 0, 300),
 
-	-- Fähigkeiten der Opfer
-	allowAdrenaline    = CreateConVar("ht_allow_adrenaline", "1", SV_FLAGS, "Opfer: Adrenalin-Sprint nach Treffer", 0, 1),
-	adrenalineSpeed    = CreateConVar("ht_adrenaline_speed", "1.5", SV_FLAGS, "Adrenalin: Tempo (1.5 = 50% schneller)", 1, 3),
-	adrenalineTime     = CreateConVar("ht_adrenaline_time", "3", SV_FLAGS, "Adrenalin: Dauer in Sekunden", 0.5, 10),
-	adrenalineCooldown = CreateConVar("ht_adrenaline_cooldown", "20", SV_FLAGS, "Adrenalin: Abklingzeit in Sekunden", 0, 300),
+	allowFlash         = CreateConVar("ht_allow_flash", "1", SV_FLAGS, "Victims: flashlight blind", 0, 1),
+	flashRange         = CreateConVar("ht_flash_range", "600", SV_FLAGS, "Flashlight blind: range in units", 100, 3000),
+	flashTime          = CreateConVar("ht_flash_time", "2.5", SV_FLAGS, "Flashlight blind: blind duration in seconds", 0.5, 10),
+	flashCooldown      = CreateConVar("ht_flash_cooldown", "40", SV_FLAGS, "Flashlight blind: cooldown in seconds", 0, 600),
 
-	allowFlash         = CreateConVar("ht_allow_flash", "1", SV_FLAGS, "Opfer: Taschenlampen-Blitz", 0, 1),
-	flashRange         = CreateConVar("ht_flash_range", "600", SV_FLAGS, "Blitz: Reichweite in Units", 100, 3000),
-	flashTime          = CreateConVar("ht_flash_time", "2.5", SV_FLAGS, "Blitz: Jäger ist so lange geblendet (Sekunden)", 0.5, 10),
-	flashCooldown      = CreateConVar("ht_flash_cooldown", "40", SV_FLAGS, "Blitz: Abklingzeit in Sekunden", 0, 600),
+	allowSilent        = CreateConVar("ht_allow_silent", "1", SV_FLAGS, "Victims: stay silent", 0, 1),
+	silentTime         = CreateConVar("ht_silent_time", "6", SV_FLAGS, "Stay silent: duration in seconds", 1, 30),
+	silentCooldown     = CreateConVar("ht_silent_cooldown", "45", SV_FLAGS, "Stay silent: cooldown in seconds", 0, 600),
 
-	allowSilent        = CreateConVar("ht_allow_silent", "1", SV_FLAGS, "Opfer: Leise sein", 0, 1),
-	silentTime         = CreateConVar("ht_silent_time", "6", SV_FLAGS, "Leise sein: Dauer in Sekunden", 1, 30),
-	silentCooldown     = CreateConVar("ht_silent_cooldown", "45", SV_FLAGS, "Leise sein: Abklingzeit in Sekunden", 0, 600),
+	allowDecoy         = CreateConVar("ht_allow_decoy", "1", SV_FLAGS, "Victims: decoy", 0, 1),
+	decoyCooldown      = CreateConVar("ht_decoy_cooldown", "25", SV_FLAGS, "Decoy: cooldown in seconds", 0, 600),
 
-	allowDecoy         = CreateConVar("ht_allow_decoy", "1", SV_FLAGS, "Opfer: Ablenkung werfen", 0, 1),
-	decoyCooldown      = CreateConVar("ht_decoy_cooldown", "25", SV_FLAGS, "Ablenkung: Abklingzeit in Sekunden", 0, 600),
-
-	allowHide          = CreateConVar("ht_allow_hide", "1", SV_FLAGS, "Opfer: Versteck-Bonus (still in der Hocke)", 0, 1),
-	hideTime           = CreateConVar("ht_hide_time", "5", SV_FLAGS, "Versteck-Bonus: so lange still hocken (Sekunden)", 1, 30),
+	allowHide          = CreateConVar("ht_allow_hide", "1", SV_FLAGS, "Victims: hiding bonus (crouch still)", 0, 1),
+	hideTime           = CreateConVar("ht_hide_time", "5", SV_FLAGS, "Hiding bonus: crouch still for seconds", 1, 30),
 }
 
-local CV = HunterTools.CV
+local CV = HT.CV
+
+------------------------------------------------------------------------
+-- Abilities
+------------------------------------------------------------------------
+
+-- kind: "active" = use on a slot, "toggle" = on/off on a slot or always on (passive)
+HT.HunterAbilities = {
+	{ id = "chaser",   name = "Chaser Pulse",     kind = "active", desc = "Victims in range glow like thermal vision for a few seconds." },
+	{ id = "roar",     name = "Roar",             kind = "active", desc = "Nearby victims are slowed and their screen shakes." },
+	{ id = "teleport", name = "Teleport",         kind = "active", desc = "Teleport to the spot you are looking at." },
+	{ id = "sounds",   name = "Scary Sounds",     kind = "active", desc = "Pick a scary sound and play it somewhere." },
+	{ id = "aim",      name = "Aim Assist",       kind = "toggle", desc = "Pulls your crosshair toward visible victims." },
+	{ id = "radar",    name = "Radar",            kind = "toggle", desc = "See all victims through walls." },
+	{ id = "noise",    name = "Noise Radar",      kind = "toggle", desc = "Sprinting, jumping and shooting victims show up as pings." },
+	{ id = "tracks",   name = "Footprints",       kind = "toggle", desc = "Victims leave glowing footprints only you can see." },
+	{ id = "heart",    name = "Heartbeat Sensor", kind = "toggle", desc = "A heartbeat that gets faster the closer a victim is." },
+}
+
+HT.VictimAbilities = {
+	{ id = "flash",      name = "Flashlight Blind", kind = "active",  slot = 1, allow = CV.allowFlash,
+		desc = "Blinds the hunter if you light him up while he looks at you." },
+	{ id = "silent",     name = "Stay Silent",      kind = "active",  slot = 2, allow = CV.allowSilent,
+		desc = "Hidden from noise radar, footprints and heartbeat for a few seconds." },
+	{ id = "decoy",      name = "Decoy",            kind = "active",  slot = 3, allow = CV.allowDecoy,
+		desc = "Throw a can. The hunter gets a fake noise ping where it lands." },
+	{ id = "adrenaline", name = "Adrenaline",       kind = "passive", allow = CV.allowAdrenaline,
+		desc = "Short speed boost after the hunter hits you." },
+	{ id = "hide",       name = "Hiding Bonus",     kind = "passive", allow = CV.allowHide,
+		desc = "Crouch still for a while to vanish from radar and chaser pulse." },
+}
+
+HT.AbilityByID = {}
+for _, a in ipairs(HT.HunterAbilities) do a.hunter = true; HT.AbilityByID[a.id] = a end
+for _, a in ipairs(HT.VictimAbilities) do HT.AbilityByID[a.id] = a end
+
+HT.VictimSlots = {}
+for _, a in ipairs(HT.VictimAbilities) do
+	if a.slot then HT.VictimSlots[a.slot] = a end
+end
+
+HT.SLOTS = 4
+
+------------------------------------------------------------------------
+-- Loadouts: "teleport=1;sounds=2;tracks=p"  (1-4 = slot, p = passive)
+------------------------------------------------------------------------
+
+HT.DEFAULT_LOADOUT = "chaser=1;roar=2;teleport=3;sounds=4"
+
+function HT.ParseLoadout(str)
+	local lo = { slots = {}, state = {} }
+	for id, v in string.gmatch(str or "", "([%w_]+)=(%w+)") do
+		local def = HT.AbilityByID[id]
+		if def and def.hunter and not lo.state[id] then
+			local n = tonumber(v)
+			if n and n >= 1 and n <= HT.SLOTS and not lo.slots[n] then
+				lo.slots[n] = id
+				lo.state[id] = n
+			elseif v == "p" and def.kind == "toggle" then
+				lo.state[id] = "p"
+			end
+		end
+	end
+	return lo
+end
+
+-- state map (id -> slot number or "p") to string
+function HT.SerializeLoadout(state)
+	local parts = {}
+	for _, def in ipairs(HT.HunterAbilities) do
+		local v = state[def.id]
+		if v then parts[#parts + 1] = def.id .. "=" .. tostring(v) end
+	end
+	return table.concat(parts, ";")
+end
+
+local loadoutCache = {}
+function HT.Loadout(ply)
+	local s = ply:GetNWString("HT_Loadout", "")
+	local lo = loadoutCache[s]
+	if not lo then
+		lo = HT.ParseLoadout(s)
+		loadoutCache[s] = lo
+	end
+	return lo
+end
+
+------------------------------------------------------------------------
+-- Roles and game settings (synced from the server, saved in data/hunter_tools/)
+------------------------------------------------------------------------
+
+HT.DefaultRoles = {
+	{ name = "Stalker", loadout = "teleport=1;sounds=2;roar=3;tracks=p;heart=p" },
+	{ name = "Tracker", loadout = "chaser=1;roar=2;sounds=3;noise=p;tracks=p" },
+	{ name = "Brute",   loadout = "roar=1;teleport=2;aim=3;heart=p" },
+	{ name = "Seer",    loadout = "radar=1;chaser=2;sounds=3;heart=p" },
+}
+
+HT.GameDefaults = {
+	roundTime    = 480,          -- seconds victims must survive
+	prepEnabled  = true,
+	prepTime     = 30,           -- hiding phase, hunter frozen and blind
+	hunterCount  = 1,
+	hunterSelect = "random",     -- random | preselected
+	roleMode     = "choice",     -- fixed | choice | random
+	fixedRole    = "Stalker",
+	choiceTime   = 15,
+	hunterWeapon = "weapon_crowbar",
+}
+
+HT.HunterWeapons = {
+	{ "weapon_crowbar", "Crowbar" },
+	{ "weapon_stunstick", "Stunstick" },
+	{ "weapon_fists", "Fists" },
+	{ "", "No weapon" },
+}
+
+HT.Roles = HT.Roles or table.Copy(HT.DefaultRoles)
+HT.Game = HT.Game or table.Copy(HT.GameDefaults)
+
+function HT.FindRole(name)
+	for _, r in ipairs(HT.Roles) do
+		if r.name == name then return r end
+	end
+end
+
+------------------------------------------------------------------------
+-- Per-player hunter settings (Hunter > Default tab)
+------------------------------------------------------------------------
 
 local function Fixed(v) return function() return v end end
 local function Limit(cvar) return function() return cvar:GetFloat() end end
 
--- Einstellungen pro Jäger. Sie liegen als NW-Werte auf dem Spieler, damit Admins sie im Menü ändern können.
-HunterTools.Settings = {
-	{ key = "HT_AimOn",           type = "bool",  default = false },
-	{ key = "HT_AimOnFire",       type = "bool",  default = false },
-	{ key = "HT_AimNPC",          type = "bool",  default = false },
-	{ key = "HT_AimStrength",     type = "float", default = 0.5,  min = 0,   max = Limit(CV.aimMaxStrength) },
-	{ key = "HT_AimFov",          type = "float", default = 12,   min = 1,   max = Limit(CV.aimMaxFov) },
-	{ key = "HT_ESP",             type = "bool",  default = false },
-	{ key = "HT_ESPNames",        type = "bool",  default = true },
-	{ key = "HT_ChaserCfgRadius", type = "float", default = 1500, min = 100, max = Limit(CV.chaserMaxRadius) },
-	{ key = "HT_ChaserCfgTime",   type = "float", default = 5,    min = 1,   max = Limit(CV.chaserMaxTime) },
-	{ key = "HT_NoiseOn",         type = "bool",  default = false },
-	{ key = "HT_TracksOn",        type = "bool",  default = false },
-	{ key = "HT_HeartOn",         type = "bool",  default = false },
+HT.Settings = {
+	{ key = "HT_AimOnFire",       type = "bool",   default = false },
+	{ key = "HT_AimNPC",          type = "bool",   default = false },
+	{ key = "HT_AimStrength",     type = "float",  default = 0.5,  min = 0,   max = Limit(CV.aimMaxStrength) },
+	{ key = "HT_AimFov",          type = "float",  default = 12,   min = 1,   max = Limit(CV.aimMaxFov) },
+	{ key = "HT_ESPNames",        type = "bool",   default = true },
+	{ key = "HT_ChaserCfgRadius", type = "float",  default = 1500, min = 100, max = Limit(CV.chaserMaxRadius) },
+	{ key = "HT_ChaserCfgTime",   type = "float",  default = 5,    min = 1,   max = Limit(CV.chaserMaxTime) },
+	{ key = "HT_DefLoadout",      type = "string", default = HT.DEFAULT_LOADOUT },
 }
 
--- Fähigkeiten mit Abklingzeit, die per Taste ausgelöst werden (Reihenfolge = Netzwerk-ID)
-HunterTools.Abilities = { "chaser", "roar", "teleport", "flash", "silent", "decoy" }
-HunterTools.VictimAbilities = { flash = true, silent = true, decoy = true }
-HunterTools.AbilityID = {}
-for i, name in ipairs(HunterTools.Abilities) do HunterTools.AbilityID[name] = i end
-
-HunterTools.SettingByKey = {}
-for _, s in ipairs(HunterTools.Settings) do
+HT.SettingByKey = {}
+for _, s in ipairs(HT.Settings) do
 	s.max = s.max or Fixed(1)
-	HunterTools.SettingByKey[s.key] = s
+	HT.SettingByKey[s.key] = s
 end
 
--- Liest eine Jäger-Einstellung, immer innerhalb der aktuellen Server-Grenzen.
-function HunterTools.Get(ply, key)
-	local s = HunterTools.SettingByKey[key]
-	if s.type == "bool" then
-		return ply:GetNWBool(key, s.default)
-	end
+function HT.Get(ply, key)
+	local s = HT.SettingByKey[key]
+	if s.type == "bool" then return ply:GetNWBool(key, s.default) end
+	if s.type == "string" then return ply:GetNWString(key, s.default) end
 	return math.Clamp(ply:GetNWFloat(key, s.default), s.min, math.max(s.min, s.max()))
 end
 
--- Wer darf den Jäger festlegen und die Einstellungen anderer ändern? (Host / Superadmin)
-function HunterTools.IsManager(ply)
+------------------------------------------------------------------------
+-- State helpers
+------------------------------------------------------------------------
+
+function HT.Phase() return GetGlobalString("HT_Phase", "lobby") end
+function HT.InRound()
+	local p = HT.Phase()
+	return p == "prep" or p == "hunt"
+end
+function HT.PhaseEnd() return GetGlobalFloat("HT_PhaseEnd", 0) end
+
+-- Host / superadmin
+function HT.IsManager(ply)
 	if not IsValid(ply) then return false end
 	if game.SinglePlayer() or ply:IsSuperAdmin() then return true end
 	return SERVER and ply:IsListenServerHost() or false
 end
 
-function HunterTools.IsHunter(ply)
-	return IsValid(ply) and ply:GetNWBool("HT_Hunter", false)
+function HT.IsHunter(ply)
+	return IsValid(ply) and ply:IsPlayer() and ply:GetNWBool("HT_Hunter", false)
 end
 
--- Gültiges Ziel für den Jäger: lebender Spieler, der nicht selbst Jäger ist.
-function HunterTools.IsTarget(hunter, ply)
+function HT.IsTarget(hunter, ply)
 	return IsValid(ply) and ply ~= hunter and ply:Alive()
-		and not HunterTools.IsHunter(ply)
+		and not HT.IsHunter(ply)
 		and ply:GetObserverMode() == OBS_MODE_NONE
 end
 
-function HunterTools.ChaserActive(ply)
-	return ply:GetNWFloat("HT_ChaserUntil", 0) > CurTime()
-end
-
--- Opfer, das eine Fähigkeit nutzen darf
-function HunterTools.IsVictim(ply)
-	return IsValid(ply) and ply:Alive() and not HunterTools.IsHunter(ply)
+function HT.IsVictim(ply)
+	return IsValid(ply) and ply:Alive() and not HT.IsHunter(ply)
 		and ply:GetObserverMode() == OBS_MODE_NONE
 end
 
--- "Leise sein": unsichtbar für Geräusch-Radar, Fußspuren und Herzschlag
-function HunterTools.IsSilent(ply)
-	return ply:GetNWFloat("HT_SilentUntil", 0) > CurTime()
+-- Hunters are frozen and blind during the hiding phase
+function HT.HunterCanAct(ply)
+	return HT.IsHunter(ply) and ply:Alive() and HT.Phase() ~= "prep"
 end
 
--- Versteck-Bonus: unsichtbar für Chaser-Puls und Radar
-function HunterTools.IsHidden(ply)
-	return CV.allowHide:GetBool() and ply:GetNWBool("HT_Hidden", false)
+function HT.HasAbility(ply, id)
+	return HT.IsHunter(ply) and HT.Loadout(ply).state[id] ~= nil
 end
 
--- Tempo: Brüllen macht langsamer, Adrenalin schneller (in SetupMove, damit es auch vorhergesagt wird)
+-- Toggle abilities: passive = always on, on a slot = switched with the slot key
+function HT.IsOn(ply, id)
+	if not HT.HunterCanAct(ply) then return false end
+	local st = HT.Loadout(ply).state[id]
+	if st == "p" then return true end
+	if st then return ply:GetNWBool("HT_T_" .. id, false) end
+	return false
+end
+
+function HT.IsActive(ply, id) return ply:GetNWFloat("HT_Active_" .. id, 0) > CurTime() end
+function HT.ActiveLeft(ply, id) return math.max(0, ply:GetNWFloat("HT_Active_" .. id, 0) - CurTime()) end
+function HT.ReadyIn(ply, id) return math.max(0, ply:GetNWFloat("HT_Ready_" .. id, 0) - CurTime()) end
+
+function HT.IsSilent(ply) return HT.IsActive(ply, "silent") end
+function HT.IsHidden(ply) return CV.allowHide:GetBool() and ply:GetNWBool("HT_Hidden", false) end
+
+function HT.FormatTime(sec)
+	sec = math.max(0, math.floor(sec))
+	return string.format("%d:%02d", math.floor(sec / 60), sec % 60)
+end
+
+-- Speed: roar slows, adrenaline speeds up (in SetupMove so it is predicted)
 hook.Add("SetupMove", "HT_Speed", function(ply, mv)
 	local now, f = CurTime(), 1
 	if ply:GetNWFloat("HT_SlowUntil", 0) > now then f = f * ply:GetNWFloat("HT_SlowFactor", 1) end
@@ -157,31 +285,34 @@ hook.Add("SetupMove", "HT_Speed", function(ply, mv)
 	mv:SetMaxSpeed(mv:GetMaxSpeed() * f)
 end)
 
--- Gruselsounds: wo der Sound abgespielt wird
-HunterTools.SoundModes = {
-	{ id = 1, name = "Bei mir" },
-	{ id = 2, name = "Hinter einem zufälligen Opfer" },
-	{ id = 3, name = "Wo ich hinschaue" },
-	{ id = 4, name = "Überall (im Kopf aller Opfer)" },
+------------------------------------------------------------------------
+-- Scary sounds
+------------------------------------------------------------------------
+
+HT.SoundModes = {
+	{ id = 1, name = "At my position" },
+	{ id = 2, name = "Behind a random victim" },
+	{ id = 3, name = "Where I am looking" },
+	{ id = 4, name = "Everywhere (in every victim's head)" },
 }
 
--- Eingebaute Sounds aus Half-Life 2 (nur die, die auch installiert sind, erscheinen im Menü)
-HunterTools.BuiltinSounds = {
-	{ "Kinder spielen / lachen",  "ambient/voices/playground_memory.wav" },
-	{ "Kinderschrei",             "ambient/creatures/town_child_scream1.wav" },
-	{ "Teddy quietscht",          "ambient/creatures/teddy.wav" },
-	{ "Schluchzen",               "ambient/creatures/town_scared_sob1.wav" },
-	{ "Schluchzen 2",             "ambient/creatures/town_scared_sob2.wav" },
-	{ "Ängstliches Atmen",        "ambient/creatures/town_scared_breathing1.wav" },
-	{ "Frauenschrei",             "ambient/voices/f_scream1.wav" },
-	{ "Männerschrei",             "ambient/voices/m_scream1.wav" },
-	{ "Stöhnen",                  "ambient/creatures/town_moan1.wav" },
-	{ "Ruf aus der Ferne",        "ambient/creatures/town_zombie_call1.wav" },
-	{ "Schweres Atmen",           "npc/stalker/breathing3.wav" },
-	{ "Seltsame Stimmen",         "ambient/levels/citadel/strange_talk1.wav" },
-	{ "Seltsame Stimmen 2",       "ambient/levels/citadel/strange_talk3.wav" },
-	{ "Zombie-Murmeln",           "npc/zombie/zombie_voice_idle1.wav" },
-	{ "Dumpfer Schlag",           "ambient/atmosphere/hole_hit1.wav" },
-	{ "Grollen",                  "ambient/atmosphere/cave_hit1.wav" },
-	{ "Lautes Klopfen",           "physics/wood/wood_crate_impact_hard3.wav" },
+-- Half-Life 2 sounds; only the ones installed on the server show up
+HT.BuiltinSounds = {
+	{ "Children playing / laughing", "ambient/voices/playground_memory.wav" },
+	{ "Child scream",                "ambient/creatures/town_child_scream1.wav" },
+	{ "Squeaky teddy",               "ambient/creatures/teddy.wav" },
+	{ "Sobbing",                     "ambient/creatures/town_scared_sob1.wav" },
+	{ "Sobbing 2",                   "ambient/creatures/town_scared_sob2.wav" },
+	{ "Scared breathing",            "ambient/creatures/town_scared_breathing1.wav" },
+	{ "Woman screaming",             "ambient/voices/f_scream1.wav" },
+	{ "Man screaming",               "ambient/voices/m_scream1.wav" },
+	{ "Moaning",                     "ambient/creatures/town_moan1.wav" },
+	{ "Distant call",                "ambient/creatures/town_zombie_call1.wav" },
+	{ "Heavy breathing",             "npc/stalker/breathing3.wav" },
+	{ "Strange voices",              "ambient/levels/citadel/strange_talk1.wav" },
+	{ "Strange voices 2",            "ambient/levels/citadel/strange_talk3.wav" },
+	{ "Zombie murmur",               "npc/zombie/zombie_voice_idle1.wav" },
+	{ "Dull thud",                   "ambient/atmosphere/hole_hit1.wav" },
+	{ "Rumble",                      "ambient/atmosphere/cave_hit1.wav" },
+	{ "Loud knock",                  "physics/wood/wood_crate_impact_hard3.wav" },
 }

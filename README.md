@@ -1,110 +1,104 @@
 # Hunter Tools – Garry's Mod Addon
 
-Ein Server-Addon, mit dem der **Jäger** in eurem Horror-Spiel stärker wird.
+Ein Horror-Spielmodus für Garry's Mod (Sandbox): Ein oder mehrere **Jäger** jagen die **Opfer**, die eine bestimmte Zeit überleben müssen.
+Jäger haben Rollen mit Fähigkeiten, die Opfer haben eigene Tricks. Das ganze Menü ist auf Englisch, damit alle mitspielen können.
+
 Du brauchst **keinen Injektor**. Es ist ein normales Addon, das auf dem Server installiert wird.
 Deine Freunde laden den Client-Teil beim Joinen automatisch herunter.
 
 ## Installation
 
-1. Kopiere den Ordner `hunter_tools` nach `garrysmod/addons/`
-   - Wenn du selbst hostest (Listen-Server über „Neues Spiel“): in **deine** GMod-Installation
-   - Bei einem gemieteten/dedizierten Server: in den `addons`-Ordner des Servers
-2. Starte den Server bzw. die Map neu.
-3. Drück im Spiel **F5**. Als Host bekommst du nach dem Joinen die Chat-Meldung „Hunter Tools geladen“.
-   - Tab **Jäger**: „Mich zum Jäger machen“ und danach alle Fähigkeiten und Tasten
-   - Tab **Spieler**: Haken setzen, wer Jäger ist. Über das **Zahnrad** neben jedem Namen änderst du dessen Jäger-Einstellungen (nur Host/Superadmin)
-   - Tab **Server**: ein oder mehrere Jäger, Fähigkeiten erlauben/verbieten, Grenzen setzen (nur Host/Superadmin)
+1. Kopiere den Ordner `hunter_tools` nach `garrysmod/addons/`.
+   Richtig ist: `garrysmod/addons/hunter_tools/lua/autorun/hunter_tools_init.lua`.
+2. Starte GMod, **Neues Spiel** (Sandbox, mehr als 1 Spieler) und hoste die Runde.
+3. Nach dem Joinen kommt im Chat „Hunter Tools loaded“. Mit **F5** öffnest du das Menü.
 
-Alles läuft über das Menü, du brauchst keine Konsolenbefehle. Alle Spieler sehen im Chat, wer Jäger ist.
+## Menü (F5)
 
-**Funktioniert nicht?**
-- Kommt nach dem Joinen keine Meldung „Hunter Tools geladen“, liegt der Ordner falsch. Richtig ist
-  `garrysmod/addons/hunter_tools/lua/autorun/hunter_tools_init.lua` (nicht `hunter_tools/hunter_tools/...`).
-- Du musst die Runde **selbst hosten** (Neues Spiel → Spieleranzahl über 1). Auf dem Server eines anderen muss dieser das Addon installieren.
-
-## Fähigkeiten
-
-| Fähigkeit | Standard-Taste | Beschreibung |
+| Tab | Wer | Inhalt |
 |---|---|---|
-| Menü | **F5** | Alle Einstellungen und Tasten ändern |
-| Aim-Hilfe | **Numpad 1** | Zieht das Fadenkreuz auf den nächsten sichtbaren Spieler im Kreis. Der Kreis in der Bildschirmmitte zeigt den Winkel und wird grün, sobald ein Ziel erfasst ist. Optional auch auf NPCs/Nextbots (gut zum Testen). |
-| Radar | **Numpad 2** | Alle Spieler rot umrandet durch Wände, mit Name und Entfernung |
-| Chaser-Puls | **Numpad 3** | Schwächere Variante: Spieler im Radius erscheinen kurz als Wärmebild (Radius und Dauer einstellbar, Standard 1500 Units / 5 s) |
-| Brüllen | **Numpad 4** | Schrei; Opfer im Radius werden kurz langsamer, ihr Bildschirm wackelt und färbt sich rot |
-| Geräusch-Radar | **Numpad 5** | Wer sprintet, springt oder schießt, erscheint kurz als Ping. Wer geht oder schleicht, bleibt unsichtbar |
-| Fußspuren | **Numpad 6** | Opfer hinterlassen leuchtende Fußabdrücke, die nur der Jäger sieht |
-| Herzschlag | **Numpad 7** | Je näher das nächste Opfer, desto schneller und lauter der Herzschlag. Zeigt keine Richtung |
-| Teleport | **Numpad 8** | Teleportiert dorthin, wo du hinschaust (kurze Reichweite, lange Abklingzeit) |
-| Gruselsound-Auswahl | **Numpad 9** | Kleines Fenster mit allen Gruselsounds, anklicken spielt ab |
-| Zufälliger Gruselsound | **Numpad 0** | Spielt einen zufälligen Gruselsound |
+| **Keybinds** | alle | Menü-Taste und die 4 Fähigkeiten-Slots belegen |
+| **Hunter** | Jäger, Admin | Außerhalb der Runde: **Abilities** (ausführen), **Roles** (Rolle wählen), **Default** (eigene Einstellungen und Slots). In der Runde nur die ausführbaren Fähigkeiten |
+| **Victim** | alle | Fähigkeiten der Opfer |
+| **Players** | Admin | Jäger setzen (zum Testen), „Next round“ für vorausgewählte Jäger, Zahnrad = Default-Einstellungen des Spielers |
+| **Server** | Admin | Werte aller Fähigkeiten (Reichweite, Dauer, Abklingzeit …) |
+| **Game** | Admin | Runde starten/stoppen, Überlebenszeit, Versteckphase, Jäger-Anzahl und -Auswahl, Rollenvergabe, **Role editor** |
 
-### Gruselsounds
+Links in jedem Tab ist eine Abschnittsliste; ein Klick springt direkt zum Abschnitt.
 
-Im Tab **Jäger** wählst du, **wo** der Sound abgespielt wird:
+## Tasten
 
-- **Bei mir**: kommt von deiner Position (verrät dich)
-- **Hinter einem zufälligen Opfer**: ein paar Meter hinter einem Opfer, das nichts ahnt
-- **Wo ich hinschaue**: an der Stelle, auf die du zielst (gut zum Weglocken)
-- **Überall**: alle hören ihn direkt „im Kopf“ (kann der Admin verbieten)
+| Taste | Standard |
+|---|---|
+| Menü | **F5** |
+| Slot 1–4 | **Numpad 1–4** |
 
-Eingebaut sind Sounds aus Half-Life 2 (z. B. spielende/lachende Kinder, Kinderschrei, Schluchzen, Atmen, Schreie, seltsame Stimmen).
-Es erscheinen nur die, die auf dem Server vorhanden sind.
+Jäger und Opfer nutzen dieselben 4 Slot-Tasten. Was ein Slot macht, hängt von der Rolle ab.
+Hinweis: F5 macht in GMod auch einen Screenshot. Wen das stört, legt das Menü im Tab Keybinds auf eine andere Taste.
 
-**Eigene Sounds:** Leg `.wav`-, `.mp3`- oder `.ogg`-Dateien in `addons/hunter_tools/sound/hunter_tools/`
-(z. B. `kinderlachen.mp3`). Nach einem Map-Neustart stehen sie mit ★ im Soundboard. Deine Freunde laden sie beim Joinen automatisch herunter.
+## Ablauf einer Runde
 
-### Fähigkeiten der Opfer (Tab „Opfer“, für alle Spieler)
+1. Der Admin stellt im Tab **Game** alles ein und drückt **Start round**.
+2. Jäger werden bestimmt (zufällig oder vorausgewählt). Alle respawnen, Jäger bekommen ihre Waffe (Standard: Brechstange), Opfer keine.
+   Bauen, Noclip und Spawnen sind während der Runde aus.
+3. **Versteckphase** (Standard 30 s, abschaltbar): Die Opfer verstecken sich, der Jäger ist eingefroren und sieht nichts.
+   Bei „Player choice“ wählt der Jäger in dieser Zeit seine Rolle (wer nicht wählt, bekommt eine zufällige).
+4. **Jagd**: Oben in der Mitte sehen alle den Timer und den Namen des Jägers.
+5. **Ende**:
+   - Alle Opfer tot → **der Jäger gewinnt**
+   - Zeit abgelaufen und mindestens ein Opfer lebt → **die Opfer gewinnen**
+   - Der Jäger stirbt (z. B. Fallschaden) → **die Opfer gewinnen**
+6. Ein Fenster zeigt den Gewinner und ein Scoreboard (Rolle, Überlebenszeit, Ergebnis, gefangene Opfer).
 
-| Fähigkeit | Standard-Taste | Beschreibung |
+Tote Opfer schauen bis zum Rundenende zu. Wer während einer Runde joint, schaut ebenfalls zu.
+Opfer können dem Jäger keinen direkten Schaden machen.
+
+## Rollen
+
+Eine Rolle ist ein Jäger-Preset: ein Name und welche Fähigkeit auf welchem Slot liegt.
+Jede Fähigkeit ist **Off**, auf **Slot 1–4** oder (bei An/Aus-Fähigkeiten) **Passive** = immer an.
+Rollen bearbeitest du im Tab **Game → Role editor**. Sie werden auf dem Server gespeichert (`data/hunter_tools/roles.json`).
+
+Mitgelieferte Rollen:
+
+| Rolle | Slots | Passiv |
 |---|---|---|
-| Taschenlampen-Blitz | **Numpad 1** | Blendet den Jäger (weißer Bildschirm), wenn du ihn direkt anleuchtest und er dich gleichzeitig ansieht |
-| Leise sein | **Numpad 2** | Ein paar Sekunden unsichtbar für Geräusch-Radar, Fußspuren und Herzschlag |
-| Ablenkung | **Numpad 3** | Wirft eine Dose; wo sie aufschlägt, bekommt der Jäger einen falschen Ping |
-| Adrenalin-Sprint | automatisch | Trifft dich der Jäger, bist du kurz schneller |
-| Versteck-Bonus | automatisch | Bleibst du eine Weile still in der Hocke, sieht dich der Jäger nicht mehr mit Radar oder Chaser-Puls |
+| Stalker | 1 Teleport, 2 Scary Sounds, 3 Roar | Footprints, Heartbeat Sensor |
+| Tracker | 1 Chaser Pulse, 2 Roar, 3 Scary Sounds | Noise Radar, Footprints |
+| Brute | 1 Roar, 2 Teleport, 3 Aim Assist | Heartbeat Sensor |
+| Seer | 1 Radar, 2 Chaser Pulse, 3 Scary Sounds | Heartbeat Sensor |
 
-Die Opfer-Tasten sind getrennt von den Jäger-Tasten. Wer Jäger ist, benutzt automatisch die Jäger-Belegung.
-Die Opfer-Anzeige steht unten links.
+Rollenvergabe (Game → Role assignment): **Fixed role**, **Player choice** (Auswahlfenster beim Start) oder **Random**.
 
-Alle Tasten kannst du im Menü neu belegen (auf das Feld klicken, dann die neue Taste drücken).
+## Fähigkeiten der Jäger
 
-> **Hinweis F5:** In GMod macht F5 standardmäßig einen Screenshot. Das Menü geht trotzdem auf,
-> aber wenn dich der Screenshot stört: `unbind f5` in die Konsole eingeben oder im Menü eine andere Taste wählen.
-
-## Server-Einstellungen (Balancing)
-
-Alle Werte kannst du im Menü im Tab **Server** ändern. Für einen dedizierten Server gehen sie auch in `server.cfg`.
-Der Jäger kann im Menü nur bis zu diesen Grenzen einstellen.
-
-| ConVar | Standard | Bedeutung |
+| Fähigkeit | Art | Wirkung |
 |---|---|---|
-| `ht_allow_aim` | 1 | Aim-Hilfe erlauben |
-| `ht_allow_esp` | 1 | Radar erlauben (auf 0 setzen, wenn nur der Chaser-Modus erlaubt sein soll) |
-| `ht_allow_chaser` | 1 | Chaser-Modus erlauben |
-| `ht_multi_hunter` | 0 | Mehrere Jäger gleichzeitig erlauben (0 = nur einer) |
-| `ht_aim_max_strength` | 0.8 | Maximale Aim-Hilfe-Stärke (0–1) |
-| `ht_aim_max_fov` | 20 | Maximaler Aim-Hilfe-Winkel in Grad |
-| `ht_chaser_max_radius` | 3000 | Maximaler Chaser-Radius |
-| `ht_chaser_max_duration` | 10 | Maximale Chaser-Dauer in Sekunden |
-| `ht_chaser_cooldown` | 15 | Abklingzeit nach einem Puls in Sekunden |
-| `ht_admins_are_hunters` | 0 | Admins werden beim Joinen automatisch Jäger |
-| `ht_allow_roar` / `ht_allow_noise` / `ht_allow_tracks` / `ht_allow_heart` / `ht_allow_teleport` | 1 | Neue Fähigkeiten einzeln erlauben |
-| `ht_roar_radius` / `ht_roar_slow` / `ht_roar_duration` / `ht_roar_cooldown` | 600 / 0.5 / 3 / 30 | Brüllen: Radius, Tempo der Opfer, Dauer, Abklingzeit |
-| `ht_noise_radius` | 2500 | Reichweite des Geräusch-Radars |
-| `ht_tracks_radius` / `ht_tracks_time` | 3000 / 8 | Fußspuren: Reichweite und Sichtdauer |
-| `ht_heart_range` | 1500 | Herzschlag ab dieser Entfernung hörbar |
-| `ht_victim_heart` / `ht_victim_heart_range` | 0 / 1000 | Opfer hören Herzklopfen, sobald ein Jäger näher als diese Entfernung ist |
-| `ht_teleport_range` / `ht_teleport_cooldown` | 800 / 45 | Teleport: Reichweite und Abklingzeit |
-| `ht_allow_sounds` / `ht_sound_allow_global` | 1 / 1 | Gruselsounds erlauben / Modus „Überall“ erlauben |
-| `ht_sound_cooldown` / `ht_sound_level` / `ht_sound_range` | 10 / 85 / 2000 | Gruselsounds: Abklingzeit, Lautstärke/Reichweite, max. Entfernung für „Wo ich hinschaue“ |
-| `ht_allow_adrenaline` / `ht_adrenaline_speed` / `ht_adrenaline_time` / `ht_adrenaline_cooldown` | 1 / 1.5 / 3 / 20 | Opfer: Adrenalin-Sprint |
-| `ht_allow_flash` / `ht_flash_range` / `ht_flash_time` / `ht_flash_cooldown` | 1 / 600 / 2.5 / 40 | Opfer: Taschenlampen-Blitz |
-| `ht_allow_silent` / `ht_silent_time` / `ht_silent_cooldown` | 1 / 6 / 45 | Opfer: Leise sein |
-| `ht_allow_decoy` / `ht_decoy_cooldown` | 1 / 25 | Opfer: Ablenkung |
-| `ht_allow_hide` / `ht_hide_time` | 1 / 5 | Opfer: Versteck-Bonus |
+| Chaser Pulse | Active | Opfer im Radius leuchten kurz als Wärmebild durch Wände |
+| Roar | Active | Opfer in der Nähe werden langsamer, ihr Bildschirm wackelt |
+| Teleport | Active | Teleport dorthin, wo du hinschaust |
+| Scary Sounds | Active | Soundauswahl (Kinderlachen, Schreie …), abspielbar bei dir, hinter einem Opfer, wo du hinschaust oder überall |
+| Aim Assist | Toggle | Zieht das Fadenkreuz auf sichtbare Opfer (Kreis zeigt den Winkel) |
+| Radar | Toggle | Alle Opfer rot umrandet durch Wände |
+| Noise Radar | Toggle | Wer rennt, springt oder schießt, erscheint als Ping |
+| Footprints | Toggle | Leuchtende Fußspuren der Opfer |
+| Heartbeat Sensor | Toggle | Herzschlag wird schneller, je näher ein Opfer ist |
 
-## Wie es funktioniert
+HUD des Jägers oben rechts: Slot 1–4 mit Status (READY, Abklingzeit, ACTIVE, ON/OFF) und Taste, darunter die Menü-Taste
+und eine Zeile für die zuletzt benutzte Fähigkeit (läuft … / Abklingzeit …).
 
-- Der Server entscheidet, wer Jäger ist. Nur der Jäger bekommt die Positionen der anderen Spieler hinter Wänden übertragen,
-  und nur solange Radar oder ein Chaser-Puls aktiv ist.
-- Der Chaser-Puls wird vom Server geprüft (Radius, Dauer, Abklingzeit). Man kann ihn also nicht über die Grenzen hinaus hochdrehen.
+**Eigene Sounds:** `.wav`, `.mp3` oder `.ogg` nach `addons/hunter_tools/sound/hunter_tools/` legen (z. B. `kinderlachen.mp3`),
+Map neu starten. Sie erscheinen mit ★ in der Soundauswahl.
+
+## Fähigkeiten der Opfer
+
+| Slot | Fähigkeit | Wirkung |
+|---|---|---|
+| 1 | Flashlight Blind | Blendet den Jäger, wenn du ihn anleuchtest und er dich ansieht |
+| 2 | Stay Silent | Kurz unsichtbar für Noise Radar, Footprints und Heartbeat |
+| 3 | Decoy | Dose werfen, der Jäger bekommt dort einen falschen Ping |
+| – | Adrenaline | Nach einem Treffer des Jägers kurz schneller |
+| – | Hiding Bonus | Still in der Hocke bleiben → unsichtbar für Radar und Chaser Pulse |
+| – | Heartbeat | Optional: Opfer hören ihr Herz, wenn ein Jäger nah ist |
+
+Alle Opfer-Fähigkeiten kann der Admin im Tab **Server** einzeln abschalten und einstellen.
