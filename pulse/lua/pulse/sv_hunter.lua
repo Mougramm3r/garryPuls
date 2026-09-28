@@ -104,7 +104,7 @@ function HT.SetHunter(ply, state, quiet)
 		HT.RemovePill(ply)
 	elseif not HT.InRound() then
 		local role = ply.HT_SelectedRole and HT.FindRole(ply.HT_SelectedRole)
-		local pill = role and role.pill or (not role and HT.Get(ply, "HT_DefPill")) or ""
+		local pill = role and HT.RolePill(ply, role) or HT.Get(ply, "HT_DefPill")
 		if pill ~= "" then HT.ApplyPill(ply, pill, false) end
 	end
 	if not quiet then

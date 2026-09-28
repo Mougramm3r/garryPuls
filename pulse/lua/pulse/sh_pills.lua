@@ -122,7 +122,18 @@ function HT.PillModel(name)
 	return t and isstring(t.model) and t.model or nil
 end
 
+-- Role setting "Choose": the player picks a character in the picker window
+HT.CHOOSE_PILL = "__choose"
+
+-- The character a role gives this player ("" = none)
+function HT.RolePill(ply, role)
+	if not role then return "" end
+	if role.pill == HT.CHOOSE_PILL then return HT.Get(ply, "HT_DefPill") end
+	return role.pill or ""
+end
+
 function HT.PillPrintName(name)
+	if name == HT.CHOOSE_PILL then return "Player's choice" end
 	if not name or name == "" or not HT.PillsInstalled() then return nil end
 	local t = pk_pills.getPillTable(name)
 	return t and (t.printName or name) or nil

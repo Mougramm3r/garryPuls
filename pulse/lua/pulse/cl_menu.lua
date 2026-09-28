@@ -811,11 +811,11 @@ Tabs.game = function()
 
 			-- character from Parakeet's Pill Pack (only shown when it is installed)
 			if HT.PillsInstalled() then
-				local pills = { { "None (normal player model)", "" } }
+				local pills = { { "None (normal player model)", "" }, { "Choose (player picks with pictures)", HT.CHOOSE_PILL } }
 				for _, pl in ipairs(HT.GetPillList()) do pills[#pills + 1] = { pl.printName, pl.name } end
 				local cb = AddCombo(p, "Character (Pill Pack)", pills, edit.pill, function(v) edit.pill = v end)
 				if edit.pill ~= "" and not HT.PillPrintName(edit.pill) then cb:SetValue("Hidden or missing: " .. edit.pill) end
-				AddInfo(p, "The hunter becomes this character for the whole round. The character brings its own attacks, so the hunter weapon is left out.")
+				AddInfo(p, "The hunter becomes this character for the whole round. The character brings its own attacks, so the hunter weapon is left out. \"Choose\" opens the character picker when the role is given.")
 			end
 
 			LoadoutEditor(p, edit.state, function() end)
@@ -1046,7 +1046,8 @@ net.Receive("HT_ChooseRole", function()
 		AddInfo(scroll, "Passive: " .. passive, C.good)
 		local character = HT.PillPrintName(r.pill)
 		if character then AddInfo(scroll, "Character: " .. character, C.warn) end
-		AddButton(scroll, "Play as " .. r.name, function() pick(r.name) end)
+		AddButton(scroll, "Play as " .. r.name .. (r.pill == HT.CHOOSE_PILL and HT.PillsInstalled() and " and choose a character" or ""),
+			function() pick(r.name) end)
 	end
 	-- Default: your own setup, then pick a character with pictures
 	local slots, passive, menu = LoadoutSummary(Get(LP(), "HT_DefLoadout"))
@@ -1055,11 +1056,7 @@ net.Receive("HT_ChooseRole", function()
 	if menu then AddInfo(scroll, "Menu: " .. menu, C.cold) end
 	AddInfo(scroll, "Passive: " .. passive, C.good)
 	AddButton(scroll, HT.PillsInstalled() and "Play as Default and choose a character" or "Play as Default", function()
-		pick("")
-		if HT.PillsInstalled() then
-			local prepEnd = HT.Phase() == "prep" and HT.PhaseEnd() or (deadline + 20)
-			HT.OpenPillPicker(prepEnd)
-		end
+		pick("") -- the server opens the character picker
 	end)
 
 	AddButton(scroll, "Random role", function() pick(HT.Roles[math.random(#HT.Roles)].name) end)
@@ -1255,4 +1252,10 @@ net.Receive("HT_RoundEnd", function()
 	end
 
 	surface.PlaySound(data.winner == "hunter" and "ambient/creatures/town_child_scream1.wav" or "ambient/levels/citadel/strange_talk1.wav")
+end)
+
+-- The server opens the picker (Default or a "Choose" role); 0 = no time limit
+net.Receive("HT_OpenPillPicker", function()
+	local deadline = net.ReadFloat()
+	timer.Simple(0.1, function() HT.OpenPillPicker(deadline > 0 and deadline or nil) end)
 end)

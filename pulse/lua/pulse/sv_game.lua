@@ -9,6 +9,7 @@ for _, name in ipairs({
 	util.AddNetworkString(name)
 end
 util.AddNetworkString("HT_PickPill")
+util.AddNetworkString("HT_OpenPillPicker")
 
 ------------------------------------------------------------------------
 -- Saving roles and game settings (data/pulse/)
@@ -242,6 +243,35 @@ local function IsAliveInRound(ply)
 	return IsValid(ply) and ply:Alive() and ply:GetObserverMode() == OBS_MODE_NONE
 end
 
+local function ApplyRoundPill(ply, pill)
+	local p = round and round.players[ply]
+	if not p or p.pillChosen then return end
+	p.pillChosen = true
+	pill = HT.ValidPill(pill)
+	if pill ~= "" and HT.ApplyPill(ply, pill, true) then
+		ply:StripWeapons()
+		ply:ChatPrint("[PULSE] Your character: " .. (HT.PillPrintName(pill) or pill))
+	end
+end
+
+-- Opens the character picker for this hunter. Who doesn't pick in time keeps their saved character.
+local function SendPillPicker(ply)
+	local p = round and round.players[ply]
+	if not p or not HT.PillsInstalled() then return end
+	local now = CurTime()
+	local deadline = (HT.Phase() == "prep" and HT.PhaseEnd() - now > 8) and HT.PhaseEnd() or now + 15
+	p.pillPick = true
+	p.pillDeadline = deadline
+	net.Start("HT_OpenPillPicker")
+	net.WriteFloat(deadline)
+	net.Send(ply)
+	timer.Simple(deadline - now + 0.5, function()
+		if round and IsValid(ply) and round.players[ply] == p and not p.pillChosen then
+			ApplyRoundPill(ply, HT.Get(ply, "HT_DefPill"))
+		end
+	end)
+end
+
 local function AssignRole(ply, name)
 	if not round or not round.players[ply] then return end
 	local role = HT.FindRole(name) or HT.Roles[math.random(#HT.Roles)]
@@ -251,9 +281,14 @@ local function AssignRole(ply, name)
 	ply:ChatPrint("[PULSE] Your role: " .. role.name)
 
 	-- the role's character from the Pill Pack; it brings its own attacks, so no hunter weapon
-	if role.pill and role.pill ~= "" and HT.ApplyPill(ply, role.pill, true) then
-		ply:StripWeapons()
-		ply:ChatPrint("[PULSE] Your character: " .. (HT.PillPrintName(role.pill) or role.pill))
+	if role.pill == HT.CHOOSE_PILL then
+		SendPillPicker(ply)
+	elseif role.pill and role.pill ~= "" then
+		round.players[ply].pillChosen = true
+		if HT.ApplyPill(ply, role.pill, true) then
+			ply:StripWeapons()
+			ply:ChatPrint("[PULSE] Your character: " .. (HT.PillPrintName(role.pill) or role.pill))
+		end
 	end
 end
 
@@ -266,17 +301,7 @@ local function AssignDefault(ply)
 	ply.HT_RoundDefault = true
 	HT.RefreshLoadout(ply)
 	ply:ChatPrint("[PULSE] Your role: Default (your own setup)")
-end
-
-local function ApplyRoundPill(ply, pill)
-	local p = round and round.players[ply]
-	if not p or p.pillChosen then return end
-	p.pillChosen = true
-	pill = HT.ValidPill(pill)
-	if pill ~= "" and HT.ApplyPill(ply, pill, true) then
-		ply:StripWeapons()
-		ply:ChatPrint("[PULSE] Your character: " .. (HT.PillPrintName(pill) or pill))
-	end
+	SendPillPicker(ply)
 end
 
 local function AssignMissingRoles()
@@ -296,10 +321,6 @@ end
 local function StartHunt()
 	if not round then return end
 	AssignMissingRoles()
-	-- Default hunters who didn't pick a character keep their saved one
-	for _, ply in ipairs(Participants(true)) do
-		if ply.HT_RoundDefault then ApplyRoundPill(ply, HT.Get(ply, "HT_DefPill")) end
-	end
 	round.huntStart = CurTime()
 	SetPhase("hunt", HT.Game.roundTime)
 	for _, ply in ipairs(Participants(true)) do ply:Freeze(false) end
@@ -697,8 +718,14 @@ net.Receive("HT_PickRole", function(_, ply)
 		if HT.IsHunter(ply) then
 			HT.RemovePill(ply)
 			local role = ply.HT_SelectedRole and HT.FindRole(ply.HT_SelectedRole)
-			local pill = role and role.pill or (not role and HT.Get(ply, "HT_DefPill")) or ""
+			local pill = role and HT.RolePill(ply, role) or HT.Get(ply, "HT_DefPill")
 			if pill ~= "" then HT.ApplyPill(ply, pill, false) end
+			-- Default or a "Choose" role: open the picker to try characters
+			if HT.PillsInstalled() and (not role or role.pill == HT.CHOOSE_PILL) then
+				net.Start("HT_OpenPillPicker")
+				net.WriteFloat(0)
+				net.Send(ply)
+			end
 		end
 	end
 end)
@@ -710,10 +737,12 @@ net.Receive("HT_PickPill", function(_, ply)
 
 	if round then
 		local p = round.players[ply]
-		if not p or not p.hunter or not ply.HT_RoundDefault then return end
-		if HT.Phase() ~= "prep" and CurTime() > (round.choiceEnd or 0) + 30 then return end
+		if not p or not p.hunter or not p.pillPick then return end
+		if CurTime() > (p.pillDeadline or 0) + 1 then return end
 		ApplyRoundPill(ply, pill)
-	elseif HT.IsHunter(ply) and not ply.HT_SelectedRole then
+	elseif HT.IsHunter(ply) then
+		local role = ply.HT_SelectedRole and HT.FindRole(ply.HT_SelectedRole)
+		if role and role.pill ~= HT.CHOOSE_PILL then return end
 		HT.RemovePill(ply)
 		if pill ~= "" then HT.ApplyPill(ply, pill, false) end
 	end
