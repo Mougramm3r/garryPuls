@@ -43,6 +43,11 @@ PULSE-Admins können selbst keine Adminrechte vergeben. Die Rechte werden gespei
 Jäger und Opfer nutzen dieselben 4 Slot-Tasten. Was ein Slot macht, hängt von der Rolle ab.
 Hinweis: F5 macht in GMod auch einen Screenshot. Wen das stört, legt das Menü im Tab Keybinds auf eine andere Taste.
 
+**Taste versehentlich falsch belegt?** In der Konsole (Taste `^`):
+- `pulse_reset_keys` setzt alle Tasten zurück (Menü F5, Slots Numpad 1–4)
+- `pulse_menu` öffnet das Menü ohne Taste
+- Linke und rechte Maustaste lassen sich nicht mehr belegen
+
 ## Ablauf einer Runde
 
 1. Der Admin stellt im Tab **Game** alles ein und drückt **Start round**.

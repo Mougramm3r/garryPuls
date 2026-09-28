@@ -33,6 +33,14 @@ for i = 1, HT.SLOTS do
 end
 HT.KeyDefaults = { menu = KEY_F5, slot1 = KEY_PAD_1, slot2 = KEY_PAD_2, slot3 = KEY_PAD_3, slot4 = KEY_PAD_4 }
 
+-- Rescue commands for the console, e.g. when a key was bound by mistake
+function HT.ResetKeys()
+	for name, cvar in pairs(HT.Keys) do RunConsoleCommand(cvar:GetName(), tostring(HT.KeyDefaults[name])) end
+	HT.Notify("Keys reset: menu F5, ability slots Numpad 1-4.")
+end
+concommand.Add("pulse_reset_keys", HT.ResetKeys)
+concommand.Add("pulse_menu", function() if HT.OpenMenu then HT.OpenMenu() end end)
+
 HT.SoundMode = CreateClientConVar("pulse_sound_mode", "2", true, false, "Scary sounds: where to play (1-4)", 1, 4)
 
 function HT.KeyName(code)
@@ -237,6 +245,14 @@ hook.Add("Think", "HT_Keys", function()
 	for name, cvar in pairs(HT.Keys) do pressed[name] = JustPressed(cvar) end
 
 	if input.IsKeyTrapping() or gui.IsGameUIVisible() or gui.IsConsoleVisible() or me:IsTyping() then return end
+
+	-- a menu key on left/right click (old setting) would block the game: reset it
+	local menuKey = HT.Keys.menu:GetInt()
+	if menuKey == MOUSE_LEFT or menuKey == MOUSE_RIGHT then
+		RunConsoleCommand(HT.Keys.menu:GetName(), tostring(KEY_F5))
+		HT.Notify("The menu key was on a mouse button and has been reset to F5.")
+		return
+	end
 
 	if pressed.menu and HT.OpenMenu then HT.OpenMenu() end
 	if HT.AnyWindowOpen and HT.AnyWindowOpen() then return end

@@ -131,7 +131,15 @@ local function AddBinder(parent, label, cvar)
 	local binder = row:Add("DBinder")
 	binder:Dock(FILL)
 	binder:SetValue(cvar:GetInt())
-	binder.OnChange = function(_, key) RunConsoleCommand(cvar:GetName(), tostring(key)) end
+	binder.OnChange = function(self, key)
+		-- left/right click would open the menu (or use an ability) on every click
+		if key == MOUSE_LEFT or key == MOUSE_RIGHT then
+			HT.Notify("Left and right mouse buttons can't be used here. Pick another key.")
+			self:SetValue(cvar:GetInt())
+			return
+		end
+		RunConsoleCommand(cvar:GetName(), tostring(key))
+	end
 end
 
 -- Sections: { { "Title", function(parent) ... end }, ... } with a jump list on the left
