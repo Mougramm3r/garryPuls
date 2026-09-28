@@ -347,8 +347,20 @@ end
 
 local function Respawn(ply)
 	if not IsValid(ply) then return end
+	ply:SetNWBool("HT_Spectator", false)
 	ply:UnSpectate()
 	ply:Spawn()
+end
+
+-- Spectators are alive but in observer mode: invisible, not solid, can't be hurt.
+-- That is more reliable than keeping players dead (other addons or the gamemode may respawn them).
+local function MakeSpectator(ply)
+	if not IsValid(ply) then return end
+	if HT.RemovePill then HT.RemovePill(ply) end
+	ply:StripWeapons()
+	ply:SetNWBool("HT_Spectator", true)
+	ply:Spectate(OBS_MODE_ROAMING)
+	ply:ChatPrint("[PULSE] You are spectating. Left/right click: switch player, space: free camera.")
 end
 
 local function StartHunt()
@@ -554,10 +566,27 @@ local function SpawnItems()
 end
 
 -- Only victims pick up items, and only one of each kind
+-- Items: in a round only victims pick them up (outside of rounds everyone, for testing)
+local function CanTakeItem(ply, cls)
+	if ply:HasWeapon(cls) or ply:GetObserverMode() ~= OBS_MODE_NONE or not ply:Alive() then return false end
+	return not HT.InRound() or HT.IsVictim(ply)
+end
+
 hook.Add("PlayerCanPickupWeapon", "HT_Items", function(ply, wep)
 	local cls = wep:GetClass()
-	if string.StartWith(cls, "pulse_item_") then
-		return HT.IsVictim(ply) and not ply:HasWeapon(cls)
+	if string.StartWith(cls, "pulse_item_") then return CanTakeItem(ply, cls) end
+end)
+
+-- Also pick up with E (use key)
+hook.Add("PlayerUse", "HT_ItemUse", function(ply, ent)
+	if not IsValid(ent) or not ent:IsWeapon() or IsValid(ent:GetOwner()) then return end
+	local cls = ent:GetClass()
+	if not string.StartWith(cls, "pulse_item_") then return end
+	if CanTakeItem(ply, cls) then
+		ply:PickupWeapon(ent)
+	elseif (ply.HT_ItemHint or 0) < CurTime() then
+		ply.HT_ItemHint = CurTime() + 3
+		ply:ChatPrint(ply:HasWeapon(cls) and "[PULSE] You already carry this item." or "[PULSE] Only victims can pick up items.")
 	end
 end)
 
@@ -843,8 +872,11 @@ hook.Add("PlayerDeath", "HT_RoundDeath", function(victim, _, attacker)
 			end
 		end
 	end
+	-- after a short moment: back as a spectator (see MakeSpectator)
 	timer.Simple(2, function()
-		if round and IsValid(victim) and not victim:Alive() then victim:Spectate(OBS_MODE_ROAMING) end
+		if round and IsValid(victim) and round.players[victim] and round.players[victim].died then
+			if victim:Alive() then MakeSpectator(victim) else victim:Spawn() end
+		end
 	end)
 	timer.Simple(0, CheckRound)
 end)
@@ -855,14 +887,42 @@ hook.Add("PlayerDeathThink", "HT_NoRespawn", function()
 end)
 
 -- Late joiners watch until the next round
-hook.Add("PlayerSpawn", "HT_LateJoin", function(ply)
-	if not round or round.players[ply] then return end
+-- Dead participants and late joiners spawn as spectators until the round ends
+hook.Add("PlayerSpawn", "HT_Spectators", function(ply)
+	if not round then return end
+	local p = round.players[ply]
+	if p and not p.died then return end
 	timer.Simple(0, function()
-		if round and IsValid(ply) and not round.players[ply] then
-			ply:KillSilent()
-			ply:Spectate(OBS_MODE_ROAMING)
-		end
+		if round and IsValid(ply) and (not round.players[ply] or round.players[ply].died) then MakeSpectator(ply) end
 	end)
+end)
+
+-- Spectator controls: left/right click cycles through the living players, jump = free camera
+hook.Add("KeyPress", "HT_SpectatorKeys", function(ply, key)
+	if not round or not ply:GetNWBool("HT_Spectator", false) then return end
+	if key == IN_JUMP then
+		ply:Spectate(OBS_MODE_ROAMING)
+		return
+	end
+	if key ~= IN_ATTACK and key ~= IN_ATTACK2 then return end
+
+	local alive = {}
+	for other, p in pairs(round.players) do
+		if IsValid(other) and other ~= ply and not p.died and other:Alive() and other:GetObserverMode() == OBS_MODE_NONE then
+			alive[#alive + 1] = other
+		end
+	end
+	if #alive == 0 then return end
+	table.sort(alive, function(a, b) return a:EntIndex() < b:EntIndex() end)
+
+	local current = ply:GetObserverTarget()
+	local index = 0
+	for i, other in ipairs(alive) do if other == current then index = i end end
+	index = index + (key == IN_ATTACK and 1 or -1)
+	if index < 1 then index = #alive elseif index > #alive then index = 1 end
+
+	ply:Spectate(OBS_MODE_CHASE)
+	ply:SpectateEntity(alive[index])
 end)
 
 -- Weapons: hunters get the hunter weapon, victims get nothing
@@ -871,7 +931,7 @@ hook.Add("PlayerLoadout", "HT_Loadout", function(ply)
 	ply:StripWeapons()
 	ply:StripAmmo()
 	local p = round.players[ply]
-	if p and p.hunter and HT.Game.hunterWeapon ~= "" then
+	if p and p.hunter and not p.died and HT.Game.hunterWeapon ~= "" then
 		ply:Give(HT.Game.hunterWeapon)
 	end
 	return true

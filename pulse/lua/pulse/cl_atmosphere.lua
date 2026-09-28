@@ -184,3 +184,17 @@ hook.Add("HUDPaint", "HT_SeriesHUD", function()
 			TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP, 1, color_black)
 	end
 end)
+
+------------------------------------------------------------------------
+-- Spectator info
+------------------------------------------------------------------------
+
+hook.Add("HUDPaint", "HT_SpectatorHUD", function()
+	local me = LP()
+	if not me or not me:GetNWBool("HT_Spectator", false) or not HT.InRound() then return end
+	local target = me:GetObserverTarget()
+	local text = IsValid(target) and target:IsPlayer() and ("SPECTATING " .. string.upper(target:Nick())) or "SPECTATING (FREE CAMERA)"
+	draw.SimpleTextOutlined(text, "HT_Sub", ScrW() / 2, ScrH() - 70, C.text, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, color_black)
+	draw.SimpleTextOutlined("Left / right click: switch player   ·   Space: free camera", "HT_Row", ScrW() / 2, ScrH() - 46,
+		C.muted, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, color_black)
+end)

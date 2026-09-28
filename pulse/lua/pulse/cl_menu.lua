@@ -9,6 +9,33 @@ local LP = HT.LP
 surface.CreateFont("HT_Tab", { font = "Roboto", size = 18, weight = 800 })
 surface.CreateFont("HT_Header", { font = "Roboto", size = 20, weight = 800 })
 surface.CreateFont("HT_Side", { font = "Roboto", size = 15, weight = 500 })
+surface.CreateFont("HT_Huge", { font = "Roboto", size = 72, weight = 900 })
+surface.CreateFont("HT_ScoreRow", { font = "Roboto", size = 21, weight = 600 })
+surface.CreateFont("HT_ScoreHead", { font = "Roboto", size = 17, weight = 800 })
+
+-- Big, readable table for the round results
+local function StyleScoreList(list)
+	list:SetDataHeight(34)
+	list:SetHeaderHeight(30)
+	list.Paint = function(_, w, h) draw.RoundedBox(4, 0, 0, w, h, Color(16, 12, 13)) end
+	for _, col in ipairs(list.Columns) do
+		col.Header:SetFont("HT_ScoreHead")
+		col.Header:SetTextColor(Color(160, 146, 141))
+		col.Header.Paint = function(_, w, h) draw.RoundedBox(0, 0, 0, w, h, Color(34, 27, 28)) end
+	end
+end
+
+local function StyleScoreLine(line, color)
+	for _, label in ipairs(line.Columns) do
+		label:SetFont("HT_ScoreRow")
+		label:SetTextColor(color or Color(236, 228, 223))
+	end
+	line.Paint = function(self, w, h)
+		if self:IsHovered() then draw.RoundedBox(0, 0, 0, w, h, Color(43, 34, 35)) end
+		surface.SetDrawColor(40, 32, 33)
+		surface.DrawLine(0, h - 1, w, h - 1)
+	end
+end
 
 local menuFrame, playerFrame, soundFrame, roleFrame, endFrame, pillFrame
 local state = { tab = "keys", sub = "abilities" }
@@ -1216,7 +1243,7 @@ net.Receive("HT_RoundEnd", function()
 	if IsValid(endFrame) then endFrame:Remove() end
 	if IsValid(roleFrame) then roleFrame:Remove() end
 
-	local f = NewFrame("Round over", 620, 480)
+	local f = NewFrame("Round over", 1000, data.series and 820 or 640)
 	endFrame = f
 
 	local titles = {
@@ -1228,17 +1255,18 @@ net.Receive("HT_RoundEnd", function()
 
 	local head = f:Add("DPanel")
 	head:Dock(TOP)
-	head:SetTall(92)
+	head:SetTall(130)
 	head.Paint = function(_, w)
-		draw.SimpleText(t[1], "HT_Big", w / 2, 30, t[2], TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-		draw.SimpleText((data.reason or "") .. "   Hunt time: " .. (data.duration or "0:00"), "HT_Side", w / 2, 68, C.muted,
+		draw.SimpleText(t[1], "HT_Huge", w / 2, 50, t[2], TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		draw.SimpleText((data.reason or "") .. "    Hunt time: " .. (data.duration or "0:00"), "HT_Sub", w / 2, 106, C.muted,
 			TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	end
 
 	local close = f:Add("DButton")
 	close:Dock(BOTTOM)
 	close:DockMargin(0, 8, 0, 0)
-	close:SetTall(30)
+	close:SetTall(40)
+	close:SetFont("HT_ScoreHead")
 	close:SetText("Close")
 	close.DoClick = function() f:Remove() end
 
@@ -1247,21 +1275,21 @@ net.Receive("HT_RoundEnd", function()
 	list:SetMultiSelect(false)
 	list:AddColumn("Player")
 	list:AddColumn("Role")
-	list:AddColumn("Survived"):SetFixedWidth(80)
+	list:AddColumn("Survived"):SetFixedWidth(120)
 	list:AddColumn("Result")
+	StyleScoreList(list)
 	for _, r in ipairs(data.rows or {}) do
-		list:AddLine(r.name, r.role, r.survived, r.result)
+		local color = r.hunter and Color(224, 120, 110) or (r.alive and C.good or nil)
+		StyleScoreLine(list:AddLine(r.name, r.role, r.survived, r.result), color)
 	end
 
 	-- series standings
 	local series = data.series
 	if series then
-		f:SetTall(math.min(ScrH() - 40, 640))
-		f:Center()
 		local info = f:Add("DLabel")
 		info:Dock(BOTTOM)
 		info:DockMargin(0, 6, 0, 0)
-		info:SetFont("HT_Sub")
+		info:SetFont("HT_Tab")
 		info:SetTextColor(series.final and C.warn or C.muted)
 		local leader = series.standings and series.standings[1]
 		info:SetText(series.final
@@ -1271,16 +1299,17 @@ net.Receive("HT_RoundEnd", function()
 
 		local standings = f:Add("DListView")
 		standings:Dock(BOTTOM)
-		standings:SetTall(150)
-		standings:DockMargin(0, 8, 0, 0)
-		standings:AddColumn("#"):SetFixedWidth(30)
+		standings:SetTall(240)
+		standings:DockMargin(0, 10, 0, 0)
+		standings:AddColumn("#"):SetFixedWidth(50)
 		standings:AddColumn("Player")
-		standings:AddColumn("Points"):SetFixedWidth(60)
-		standings:AddColumn("Catches"):SetFixedWidth(60)
-		standings:AddColumn("Survived"):SetFixedWidth(60)
-		standings:AddColumn("Hunter"):SetFixedWidth(60)
+		standings:AddColumn("Points"):SetFixedWidth(110)
+		standings:AddColumn("Catches"):SetFixedWidth(110)
+		standings:AddColumn("Survived"):SetFixedWidth(110)
+		standings:AddColumn("Hunter"):SetFixedWidth(110)
+		StyleScoreList(standings)
 		for i, sc in ipairs(series.standings or {}) do
-			standings:AddLine(i, sc.name, sc.points, sc.catches, sc.survived, sc.hunted)
+			StyleScoreLine(standings:AddLine(i, sc.name, sc.points, sc.catches, sc.survived, sc.hunted), i == 1 and C.warn or nil)
 		end
 		-- close the window automatically before the next round starts
 		if not series.final and series.nextIn then

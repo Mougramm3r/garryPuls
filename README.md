@@ -62,7 +62,9 @@ Hinweis: F5 macht in GMod auch einen Screenshot. Wen das stört, legt das Menü 
    - Der Jäger stirbt (z. B. Fallschaden) → **die Opfer gewinnen**
 6. Ein Fenster zeigt den Gewinner und ein Scoreboard (Rolle, Überlebenszeit, Ergebnis, gefangene Opfer).
 
-Tote Opfer schauen bis zum Rundenende zu. Wer während einer Runde joint, schaut ebenfalls zu.
+Tote Opfer schauen bis zum Rundenende zu (unsichtbar, nicht treffbar). **Links-/Rechtsklick** wechselt zwischen den
+lebenden Spielern, **Leertaste** schaltet auf freie Kamera. Wer während einer Runde joint, schaut ebenfalls zu.
+Hinweis: Mit nur einem Opfer endet die Runde sofort, wenn es stirbt, und alle respawnen.
 Opfer können dem Jäger keinen direkten Schaden machen.
 
 ## Rollen
@@ -151,7 +153,7 @@ Ist **Parakeet's Pill Pack** mit Charakter-Packs (z. B. FNAF-Charaktere) install
 ## Items (Opfer)
 
 Beim Rundenstart werden Items auf der Map verteilt (Anzahl und Sorten im Tab **Game → Items**). Nur Opfer können sie aufheben,
-indem sie darüberlaufen. Sie landen im normalen Waffen-Inventar: **Mausrad** zum Auswählen, **Linksklick** zum Benutzen.
+indem sie darüberlaufen oder **E** drücken (außerhalb von Runden darf jeder aufheben, zum Testen). Sie landen im normalen Waffen-Inventar: **Mausrad** zum Auswählen, **Linksklick** zum Benutzen.
 
 | Item | Wirkung |
 |---|---|
