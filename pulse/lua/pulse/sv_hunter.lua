@@ -148,6 +148,12 @@ if not serverValues then
 	serverValues = { pulse_roar_slow = 0.75, pulse_roar_duration = 2, pulse_sanity_see = 0.5 }
 	SaveServerValues()
 end
+if (serverValues._version or 1) < 2 then
+	-- longer flashlight blind (unless the admin already set it)
+	if serverValues.pulse_flash_time == nil then serverValues.pulse_flash_time = 5 end
+	serverValues._version = 2
+	SaveServerValues()
+end
 for name, value in pairs(serverValues) do
 	if editable[name] then RunConsoleCommand(name, tostring(value)) end
 end
@@ -908,7 +914,7 @@ hook.Add("SetupPlayerVisibility", "HT_PVS", function(ply)
 	if IsValid(stalked) then AddOriginToPVS(stalked:GetPos()) end
 
 	for _, target in ipairs(player.GetAll()) do
-		if HT.IsRevealed(target) and HT.IsTarget(ply, target) then AddOriginToPVS(target:GetPos()) end
+		if HT.IsRevealed(target) and HT.IsTarget(ply, target) and not HT.IsHidden(target) then AddOriginToPVS(target:GetPos()) end
 	end
 
 	local radar = HT.IsOn(ply, "radar")

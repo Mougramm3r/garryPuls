@@ -41,7 +41,7 @@ HT.CV = {
 
 	allowFlash         = CreateConVar("pulse_allow_flash", "1", SV_FLAGS, "Victims: flashlight blind", 0, 1),
 	flashRange         = CreateConVar("pulse_flash_range", "600", SV_FLAGS, "Flashlight blind: range in units", 100, 3000),
-	flashTime          = CreateConVar("pulse_flash_time", "2.5", SV_FLAGS, "Flashlight blind: blind duration in seconds", 0.5, 10),
+	flashTime          = CreateConVar("pulse_flash_time", "5", SV_FLAGS, "Flashlight blind: blind duration in seconds", 0.5, 10),
 	flashCooldown      = CreateConVar("pulse_flash_cooldown", "40", SV_FLAGS, "Flashlight blind: cooldown in seconds", 0, 600),
 
 	allowSilent        = CreateConVar("pulse_allow_silent", "1", SV_FLAGS, "Victims: stay silent", 0, 1),
@@ -128,7 +128,7 @@ HT.VictimAbilities = {
 	{ id = "flash",      name = "Flashlight Blind", kind = "active",  slot = 1, allow = CV.allowFlash,
 		desc = "Blinds the hunter if you light him up while he looks at you." },
 	{ id = "silent",     name = "Stay Silent",      kind = "active",  slot = 2, allow = CV.allowSilent,
-		desc = "Hidden from noise radar, footprints and heartbeat for a few seconds." },
+		desc = "For a few seconds the hunter can't find you: no radar, chaser pulse, marks, noise pings, footprints or heartbeat." },
 	{ id = "decoy",      name = "Decoy",            kind = "active",  slot = 3, allow = CV.allowDecoy,
 		desc = "Throw a can. The hunter gets a fake noise ping where it lands." },
 	{ id = "adrenaline", name = "Adrenaline",       kind = "passive", allow = CV.allowAdrenaline,
@@ -380,7 +380,10 @@ end
 function HT.Fear(ply) return 1 - HT.Sanity(ply) / 100 end
 function HT.IsInsane(ply) return CV.sanityEnabled:GetBool() and HT.Sanity(ply) <= 0.5 end
 function HT.IsRevealed(ply) return ply:GetNWFloat("HT_RevealUntil", 0) > CurTime() end
-function HT.IsHidden(ply) return CV.allowHide:GetBool() and ply:GetNWBool("HT_Hidden", false) end
+-- Hidden from radar, chaser pulse and being revealed: hiding bonus or "Stay Silent"
+function HT.IsHidden(ply)
+	return (CV.allowHide:GetBool() and ply:GetNWBool("HT_Hidden", false)) or HT.IsSilent(ply)
+end
 
 function HT.FormatTime(sec)
 	sec = math.max(0, math.floor(sec))

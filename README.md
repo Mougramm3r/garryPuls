@@ -120,7 +120,7 @@ Map neu starten. Sie erscheinen mit ★ in der Soundauswahl.
 | Slot | Fähigkeit | Wirkung |
 |---|---|---|
 | 1 | Flashlight Blind | Blendet den Jäger, wenn du ihn anleuchtest und er dich ansieht |
-| 2 | Stay Silent | Kurz unsichtbar für Noise Radar, Footprints und Heartbeat |
+| 2 | Stay Silent | Ein paar Sekunden unauffindbar: kein Radar, Chaser Pulse, Mark, Geräusch-Ping, Fußspuren oder Herzschlag |
 | 3 | Decoy | Dose werfen, der Jäger bekommt dort einen falschen Ping |
 | – | Adrenaline | Nach einem Treffer des Jägers kurz schneller |
 | – | Hiding Bonus | Still in der Hocke bleiben → unsichtbar für Radar und Chaser Pulse |

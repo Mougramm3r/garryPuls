@@ -397,7 +397,7 @@ hook.Add("PreDrawHalos", "HT_Halos", function()
 	-- insane victims light up now and then
 	local revealed = {}
 	for _, ply in ipairs(Targets()) do
-		if HT.IsRevealed(ply) then revealed[#revealed + 1] = ply end
+		if HT.IsRevealed(ply) and not HT.IsHidden(ply) then revealed[#revealed + 1] = ply end
 	end
 	if #revealed > 0 then halo.Add(revealed, Color(190, 90, 255), 3, 3, 2, true, true) end
 end)
@@ -817,10 +817,11 @@ hook.Add("HUDPaint", "HT_HUD", function()
 		DrawVictimHUD(me)
 	end
 
-	-- flashlight blind: white screen, fades out in the second half
+	-- flashlight blind: white screen
 	local left = blindUntil - CurTime()
 	if left > 0 then
-		surface.SetDrawColor(255, 255, 255, math.Clamp(left / blindTime * 2, 0, 1) * 255)
+		-- fully white for most of the time, fades out in the last 30 %
+		surface.SetDrawColor(255, 255, 255, math.Clamp(left / (blindTime * 0.3), 0, 1) * 255)
 		surface.DrawRect(0, 0, ScrW(), ScrH())
 	end
 end)
