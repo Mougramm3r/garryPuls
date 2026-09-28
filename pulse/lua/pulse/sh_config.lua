@@ -19,6 +19,8 @@ HT.CV = {
 	roarCooldown       = CreateConVar("pulse_roar_cooldown", "30", SV_FLAGS, "Roar: cooldown in seconds", 0, 600),
 
 	noiseRadius        = CreateConVar("pulse_noise_radius", "2500", SV_FLAGS, "Noise radar: range in units", 200, 20000),
+	noiseInterval      = CreateConVar("pulse_noise_interval", "4", SV_FLAGS, "Noise radar: seconds between two pings of the same victim", 1, 30),
+	nvRadius           = CreateConVar("pulse_nv_radius", "650", SV_FLAGS, "Night vision: light radius in units", 150, 3000),
 	tracksRadius       = CreateConVar("pulse_tracks_radius", "3000", SV_FLAGS, "Footprints: range in units", 200, 20000),
 	tracksTime         = CreateConVar("pulse_tracks_time", "8", SV_FLAGS, "Footprints: visible for seconds", 1, 30),
 	heartRange         = CreateConVar("pulse_heart_range", "1500", SV_FLAGS, "Heartbeat sensor: audible from this distance", 200, 5000),
@@ -46,7 +48,7 @@ HT.CV = {
 
 	allowSilent        = CreateConVar("pulse_allow_silent", "1", SV_FLAGS, "Victims: stay silent", 0, 1),
 	silentTime         = CreateConVar("pulse_silent_time", "6", SV_FLAGS, "Stay silent: duration in seconds", 1, 30),
-	silentCooldown     = CreateConVar("pulse_silent_cooldown", "45", SV_FLAGS, "Stay silent: cooldown in seconds", 0, 600),
+	silentCooldown     = CreateConVar("pulse_silent_cooldown", "10", SV_FLAGS, "Stay silent: cooldown in seconds", 0, 600),
 
 	allowDecoy         = CreateConVar("pulse_allow_decoy", "1", SV_FLAGS, "Victims: decoy", 0, 1),
 	decoyCooldown      = CreateConVar("pulse_decoy_cooldown", "25", SV_FLAGS, "Decoy: cooldown in seconds", 0, 600),
@@ -110,7 +112,8 @@ HT.HunterAbilities = {
 	{ id = "sounds",   name = "Scary Sounds",     kind = "active", desc = "Pick a scary sound and play it somewhere." },
 	{ id = "aim",      name = "Aim Assist",       kind = "toggle", desc = "Pulls your crosshair toward visible victims." },
 	{ id = "radar",    name = "Radar",            kind = "toggle", desc = "See all victims through walls." },
-	{ id = "noise",    name = "Noise Radar",      kind = "toggle", desc = "Sprinting, jumping and shooting victims show up as pings." },
+	{ id = "noise",    name = "Noise Radar",      kind = "toggle", noPassive = true,
+		desc = "Sprinting, jumping and shooting victims show up as pings. You can't sprint while it is on." },
 	{ id = "tracks",   name = "Footprints",       kind = "toggle", desc = "Victims leave glowing footprints only you can see." },
 	{ id = "heart",    name = "Heartbeat Sensor", kind = "toggle", desc = "A heartbeat that gets faster the closer a victim is." },
 	{ id = "stalk",    name = "Stalk",            kind = "active", desc = "Watch the nearest victim for a few seconds. Your body stays frozen where it is." },
@@ -121,7 +124,7 @@ HT.HunterAbilities = {
 	{ id = "mark",     name = "Mark",             kind = "active", desc = "Aim at a victim to keep them visible for a few seconds." },
 	{ id = "mimic",    name = "Mimic",            kind = "active", desc = "Look like one of the victims until you attack." },
 	{ id = "doorslam", name = "Door Slam",        kind = "active", desc = "Slam and lock doors nearby for a moment (depends on the map)." },
-	{ id = "nightvision", name = "Night Vision",  kind = "toggle", desc = "See in the dark." },
+	{ id = "nightvision", name = "Night Vision",  kind = "toggle", desc = "Grainy green vision that lights up a small area around you." },
 }
 
 HT.VictimAbilities = {
@@ -150,6 +153,7 @@ HT.SLOTS = 4
 
 ------------------------------------------------------------------------
 -- Loadouts: "teleport=1;sounds=2;stalk=m;tracks=p"  (1-4 = slot, m = menu only, p = passive)
+-- Toggles with noPassive can't be "p": a saved "p" becomes menu only
 ------------------------------------------------------------------------
 
 HT.DEFAULT_LOADOUT = "chaser=1;roar=2;teleport=3;sounds=4"
@@ -163,9 +167,9 @@ function HT.ParseLoadout(str)
 			if n and n >= 1 and n <= HT.SLOTS and not lo.slots[n] then
 				lo.slots[n] = id
 				lo.state[id] = n
-			elseif v == "p" and def.kind == "toggle" then
+			elseif v == "p" and def.kind == "toggle" and not def.noPassive then
 				lo.state[id] = "p"
-			elseif v == "m" then
+			elseif v == "m" or (v == "p" and def.kind == "toggle") then
 				lo.state[id] = "m"
 			end
 		end
@@ -203,7 +207,7 @@ end
 
 HT.DefaultRoles = {
 	{ name = "Stalker", loadout = "behind=1;sounds=2;teleport=3;roar=4;stalk=m;tracks=p;heart=p" },
-	{ name = "Tracker", loadout = "chaser=1;roar=2;sounds=3;stalk=4;noise=p;tracks=p" },
+	{ name = "Tracker", loadout = "chaser=1;roar=2;noise=3;sounds=4;stalk=m;tracks=p" },
 	{ name = "Brute",   loadout = "roar=1;teleport=2;jump=3;aim=4;heart=p" },
 	{ name = "Seer",    loadout = "radar=1;chaser=2;jump=3;sounds=4;stalk=m;heart=p" },
 	{ name = "Phantom", loadout = "mimic=1;blackout=2;trap=3;doorslam=4;mark=m;nightvision=p;heart=p" },
@@ -219,6 +223,8 @@ HT.GameDefaults = {
 	fixedRole    = "Stalker",
 	choiceTime   = 15,
 	hunterWeapon = "weapon_crowbar",
+	victimWeapons = "",          -- start weapons for victims, comma separated classes
+	victimDamage = false,        -- victims may hurt the hunter with their weapons
 
 	-- final phase and atmosphere
 	finalPhase   = true,         -- last victim standing gets a speed boost, chase music starts
@@ -231,7 +237,6 @@ HT.GameDefaults = {
 	items        = true,
 	itemCount    = 8,
 	itemPills    = true,
-	itemMedkit   = true,
 	itemGlowstick = true,
 	itemCamera   = true,
 
@@ -249,7 +254,6 @@ HT.GameDefaults = {
 
 HT.Items = {
 	{ key = "itemPills",     class = "pulse_item_pills",     name = "Calming Pills" },
-	{ key = "itemMedkit",    class = "pulse_item_medkit",    name = "Medkit" },
 	{ key = "itemGlowstick", class = "pulse_item_glowstick", name = "Glowstick" },
 	{ key = "itemCamera",    class = "pulse_item_camera",    name = "Camera Flash" },
 }
@@ -260,6 +264,34 @@ HT.HunterWeapons = {
 	{ "weapon_fists", "Fists" },
 	{ "", "No weapon" },
 }
+
+-- Start weapons the admin can tick for victims (any other class can be typed in)
+HT.VictimWeapons = {
+	{ "weapon_crowbar", "Crowbar" },
+	{ "weapon_stunstick", "Stunstick" },
+	{ "weapon_pistol", "Pistol" },
+	{ "weapon_357", ".357 Magnum" },
+	{ "weapon_smg1", "SMG" },
+	{ "weapon_shotgun", "Shotgun" },
+	{ "weapon_ar2", "Pulse Rifle" },
+	{ "weapon_crossbow", "Crossbow" },
+	{ "weapon_frag", "Grenade" },
+	{ "weapon_physcannon", "Gravity Gun" },
+	{ "weapon_bugbait", "Bugbait" },
+}
+
+-- "weapon_pistol, weapon_smg1" -> { "weapon_pistol", "weapon_smg1" } (valid class names only, max 16)
+function HT.VictimWeaponList(str)
+	local list, seen = {}, {}
+	for class in string.gmatch(tostring(str or ""), "[^,%s]+") do
+		class = string.lower(class)
+		if #class <= 64 and not string.find(class, "[^%w_%-%.]") and not seen[class] and #list < 16 then
+			seen[class] = true
+			list[#list + 1] = class
+		end
+	end
+	return list
+end
 
 HT.Roles = HT.Roles or table.Copy(HT.DefaultRoles)
 HT.Game = HT.Game or table.Copy(HT.GameDefaults)
@@ -403,11 +435,30 @@ hook.Add("StartCommand", "HT_Frozen", function(ply, cmd)
 	if not HT.IsFrozen(ply) then return end
 	cmd:ClearMovement()
 	cmd:ClearButtons()
+	-- Behind You: always look at the victim (also turns Pill Pack characters)
+	local ang = HT.BehindAngle(ply)
+	if ang then cmd:SetViewAngles(ang) end
 end)
+
+-- View angle toward the victim while standing behind them, or nil
+function HT.BehindAngle(ply)
+	if not HT.IsActive(ply, "behind") then return end
+	local target = ply:GetNWEntity("HT_BehindTarget")
+	if not IsValid(target) then return end
+	local ang = (target:EyePos() - ply:EyePos()):Angle()
+	ang.r = 0
+	return ang
+end
 
 hook.Add("SetupMove", "HT_Speed", function(ply, mv)
 	-- out of stamina: walking speed only
 	if ply:GetNWBool("HT_Exhausted", false) then
+		local walk = ply:GetWalkSpeed()
+		mv:SetMaxClientSpeed(math.min(mv:GetMaxClientSpeed(), walk))
+		mv:SetMaxSpeed(math.min(mv:GetMaxSpeed(), walk))
+	end
+	-- noise radar on: the hunter can't sprint
+	if HT.IsHunter(ply) and HT.IsOn(ply, "noise") then
 		local walk = ply:GetWalkSpeed()
 		mv:SetMaxClientSpeed(math.min(mv:GetMaxClientSpeed(), walk))
 		mv:SetMaxSpeed(math.min(mv:GetMaxSpeed(), walk))

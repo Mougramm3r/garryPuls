@@ -134,6 +134,8 @@ end)
 
 HT.LastUsed = nil -- shown in the HUD status line
 
+HT.PendingToggle = {}
+
 function HT.UseAbility(id)
 	local me = LP()
 	local def = HT.AbilityByID[id]
@@ -142,9 +144,15 @@ function HT.UseAbility(id)
 	if def.hunter then
 		if not HT.HunterCanAct(me) then HT.Notify("You can't use abilities right now.") return end
 		if def.kind == "toggle" then
-			local on = not HT.IsOn(me, id)
+			if HT.Loadout(me).state[id] == "p" then HT.Notify(def.name .. " is always on.") return end
+			-- remember what we asked for: the networked value may still be on its way after a quick second press
+			local pending = HT.PendingToggle[id]
+			local current = (pending and pending.untilTime > CurTime()) and pending.on or HT.IsOn(me, id)
+			local on = not current
+			HT.PendingToggle[id] = { on = on, untilTime = CurTime() + 1 }
 			net.Start("HT_Ability")
 			net.WriteString(id)
+			net.WriteBool(on)
 			net.SendToServer()
 			surface.PlaySound("buttons/blip1.wav")
 			HT.Notify(def.name .. (on and " ON" or " OFF"))
@@ -346,6 +354,13 @@ local function FindAimTarget(me, eye, forward, maxFov)
 	end
 	return best, bestPos
 end
+
+-- Behind You: the view stays on the victim
+hook.Add("CreateMove", "HT_BehindLook", function(cmd)
+	local me = LP()
+	local ang = me and HT.BehindAngle(me)
+	if ang then cmd:SetViewAngles(ang) end
+end)
 
 hook.Add("CreateMove", "HT_AimAssist", function(cmd)
 	local me = LP()

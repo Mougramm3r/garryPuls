@@ -58,6 +58,8 @@ local function ValidateGame(g)
 		if v == nil then return def end
 		return v == true or v == 1
 	end
+	out.victimWeapons = table.concat(HT.VictimWeaponList(g.victimWeapons), ",")
+	out.victimDamage = B(g.victimDamage, d.victimDamage)
 	out.finalPhase = B(g.finalPhase, d.finalPhase)
 	out.finalBoost = math.Clamp(tonumber(g.finalBoost) or d.finalBoost, 0, 30)
 	out.musicLast = math.Clamp(math.floor(tonumber(g.musicLast) or d.musicLast), 0, 600)
@@ -352,13 +354,14 @@ local function Respawn(ply)
 	ply:Spawn()
 end
 
--- Spectators are alive but in observer mode: invisible, not solid, can't be hurt.
--- That is more reliable than keeping players dead (other addons or the gamemode may respawn them).
+-- Spectators are dead and in observer mode, so nothing (e.g. a Pill Pack grab attack) can target them.
+-- If something respawns them anyway, the PlayerSpawn hook below puts them back.
 local function MakeSpectator(ply)
 	if not IsValid(ply) then return end
 	if HT.RemovePill then HT.RemovePill(ply) end
 	ply:StripWeapons()
 	ply:SetNWBool("HT_Spectator", true)
+	if ply:Alive() then ply:KillSilent() end
 	ply:Spectate(OBS_MODE_ROAMING)
 	ply:ChatPrint("[PULSE] You are spectating. Left/right click: switch player, space: free camera.")
 end
@@ -875,7 +878,7 @@ hook.Add("PlayerDeath", "HT_RoundDeath", function(victim, _, attacker)
 	-- after a short moment: back as a spectator (see MakeSpectator)
 	timer.Simple(2, function()
 		if round and IsValid(victim) and round.players[victim] and round.players[victim].died then
-			if victim:Alive() then MakeSpectator(victim) else victim:Spawn() end
+			MakeSpectator(victim)
 		end
 	end)
 	timer.Simple(0, CheckRound)
@@ -925,25 +928,39 @@ hook.Add("KeyPress", "HT_SpectatorKeys", function(ply, key)
 	ply:SpectateEntity(alive[index])
 end)
 
--- Weapons: hunters get the hunter weapon, victims get nothing
+-- Weapons: hunters get the hunter weapon, victims get the start weapons set in Game > Round
 hook.Add("PlayerLoadout", "HT_Loadout", function(ply)
 	if not round then return end
 	ply:StripWeapons()
 	ply:StripAmmo()
 	local p = round.players[ply]
-	if p and p.hunter and not p.died and HT.Game.hunterWeapon ~= "" then
-		ply:Give(HT.Game.hunterWeapon)
+	if p and not p.died then
+		if p.hunter then
+			if HT.Game.hunterWeapon ~= "" then ply:Give(HT.Game.hunterWeapon) end
+		else
+			for _, class in ipairs(HT.VictimWeaponList(HT.Game.victimWeapons)) do
+				local wep = ply:Give(class)
+				if IsValid(wep) and wep:GetPrimaryAmmoType() >= 0 then
+					ply:GiveAmmo(math.max(wep:GetMaxClip1(), 1) * 3, wep:GetPrimaryAmmoType(), true)
+				end
+			end
+		end
 	end
 	return true
 end)
 
--- Victims can't hurt hunters directly, hunters can't hurt each other
+-- Spectators can't be hurt. Victims only hurt the hunter if the admin allows it; hunters can't hurt each other.
 hook.Add("EntityTakeDamage", "HT_RoundDamage", function(target, dmg)
 	if not round or not IsValid(target) or not target:IsPlayer() then return end
+	if target:GetNWBool("HT_Spectator", false) then return true end
 	local attacker = HT.OwnerPlayer(dmg:GetAttacker())
 	if HT.Phase() == "prep" then return true end
-	if HT.IsHunter(target) and IsValid(attacker) and attacker:IsPlayer() and attacker ~= target then return true end
-	if IsValid(attacker) and attacker:IsPlayer() and not HT.IsHunter(attacker) and attacker ~= target then return true end
+	if not IsValid(attacker) or not attacker:IsPlayer() or attacker == target then return end
+	if HT.IsHunter(target) then
+		if HT.IsHunter(attacker) or not HT.Game.victimDamage then return true end
+		return
+	end
+	if not HT.IsHunter(attacker) then return true end
 end)
 
 -- No sandbox building, noclip or spawning during a round

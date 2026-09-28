@@ -67,6 +67,8 @@ function HT.ResetAbilityState(ply)
 	ply:SetNWFloat("HT_RootUntil", 0)
 	ply:SetNWFloat("HT_BlackoutUntil", 0)
 	ply.HT_BehindVictim = nil
+	ply.HT_BehindSeen = nil
+	ply:SetNWEntity("HT_BehindTarget", NULL)
 	if HT.EndMimic then HT.EndMimic(ply) end
 	if HT.RemoveTraps then HT.RemoveTraps(ply) end
 end
@@ -152,6 +154,12 @@ if (serverValues._version or 1) < 2 then
 	-- longer flashlight blind (unless the admin already set it)
 	if serverValues.pulse_flash_time == nil then serverValues.pulse_flash_time = 5 end
 	serverValues._version = 2
+	SaveServerValues()
+end
+if serverValues._version < 3 then
+	-- Stay Silent: new cooldown 10 s
+	serverValues.pulse_silent_cooldown = 10
+	serverValues._version = 3
 	SaveServerValues()
 end
 for name, value in pairs(serverValues) do
@@ -430,9 +438,11 @@ local Actions = {
 		ply.HT_BehindReturn = { pos = ply:GetPos(), ang = ply:EyeAngles() }
 		ply.HT_BehindVictim = victim
 		ply.HT_BehindBreath = 0
+		ply.HT_BehindSeen = nil
+		ply:SetNWEntity("HT_BehindTarget", victim)
 		ply:SetPos(spot)
-		ply:SetEyeAngles(fwd:Angle())
 		ply:SetVelocity(-ply:GetVelocity())
+		HT.FaceTarget(ply, victim)
 
 		local duration = CV.behindTime:GetFloat()
 		net.Start("HT_ForceHeart")
@@ -627,12 +637,25 @@ end)
 
 hook.Add("PlayerDisconnected", "HT_Traps", function(ply) HT.RemoveTraps(ply) end)
 
+-- Turn the hunter (and a Pill Pack character) toward the victim
+function HT.FaceTarget(ply, target)
+	local ang = (target:EyePos() - ply:EyePos()):Angle()
+	ang.r = 0
+	ply:SetEyeAngles(ang)
+	if HT.PillsInstalled() and pk_pills.getMappedEnt then
+		local ent = pk_pills.getMappedEnt(ply)
+		if IsValid(ent) then ent:SetAngles(Angle(0, ang.y, 0)) end
+	end
+end
+
 -- Brings the hunter back from "Behind You"
 local function ReturnFromBehind(ply)
 	local ret = ply.HT_BehindReturn
 	ply.HT_BehindVictim = nil
 	ply.HT_BehindReturn = nil
+	ply.HT_BehindSeen = nil
 	ply:SetNWFloat("HT_Active_behind", 0)
+	ply:SetNWEntity("HT_BehindTarget", NULL)
 	if ret and IsValid(ply) and ply:Alive() then
 		ply:SetPos(ret.pos)
 		ply:SetEyeAngles(ret.ang)
@@ -643,6 +666,7 @@ end
 local BREATH_SOUND = "npc/stalker/breathing3.wav"
 local VANISH_SOUND = "npc/stalker/go_alert2a.wav"
 local TURN_CONE = math.cos(math.rad(55))
+local SEEN_TIME = 1 -- the hunter stays visible this long after the victim turned around
 
 -- While behind a victim: breathe, vanish if they turn around, return if they walk away
 timer.Create("HT_BehindTick", 0.1, 0, function()
@@ -654,13 +678,19 @@ timer.Create("HT_BehindTick", 0.1, 0, function()
 				ReturnFromBehind(ply)
 			elseif victim:GetPos():DistToSqr(ply:GetPos()) > 250 ^ 2 then
 				ReturnFromBehind(ply) -- walked away: nothing happens
+			elseif ply.HT_BehindSeen then
+				HT.FaceTarget(ply, victim)
+				if now >= ply.HT_BehindSeen then ReturnFromBehind(ply) end
 			else
+				HT.FaceTarget(ply, victim)
 				local dir = ply:EyePos() - victim:EyePos()
 				dir:Normalize()
 				if victim:GetAimVector():Dot(dir) > TURN_CONE then
+					-- seen: stay a moment so the victim really sees the hunter, then vanish
 					sound.Play(VANISH_SOUND, ply:EyePos(), 55, 60, 0.5)
 					HT.Scare(victim, 20)
-					ReturnFromBehind(ply)
+					ply.HT_BehindSeen = now + SEEN_TIME
+					ply:SetNWFloat("HT_Active_behind", now + SEEN_TIME + 0.5)
 				elseif now > (ply.HT_BehindBreath or 0) then
 					ply.HT_BehindBreath = now + 2.5
 					sound.Play(BREATH_SOUND, ply:EyePos(), 65, 100, 0.8)
@@ -683,12 +713,13 @@ net.Receive("HT_Ability", function(_, ply)
 
 	if def.hunter then
 		if not HT.HunterCanAct(ply) or not HT.CanTrigger(ply, id) then return end
-		if HT.IsActive(ply, "stalk") or HT.IsActive(ply, "behind") then return end
 
+		-- toggles: the client sends the state it wants, so a lost or doubled press can't flip it the wrong way
 		if def.kind == "toggle" then
-			ply:SetNWBool("HT_T_" .. id, not ply:GetNWBool("HT_T_" .. id, false))
+			ply:SetNWBool("HT_T_" .. id, net.ReadBool())
 			return
 		end
+		if HT.IsActive(ply, "stalk") or HT.IsActive(ply, "behind") then return end
 	else
 		if not HT.IsVictim(ply) or not def.allow:GetBool() or def.kind ~= "active" then return end
 	end
@@ -738,7 +769,8 @@ HT.SendPing = SendPing
 local function MakeNoise(ply, kind)
 	if not HT.IsVictim(ply) or HT.IsSilent(ply) then return end
 	local now = CurTime()
-	if (lastNoise[ply] or 0) > now - 0.6 then return end
+	-- one ping per victim every few seconds
+	if (lastNoise[ply] or 0) > now - CV.noiseInterval:GetFloat() then return end
 	lastNoise[ply] = now
 	SendPing(ply:GetPos() + Vector(0, 0, 40), kind)
 end

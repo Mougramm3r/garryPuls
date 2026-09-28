@@ -252,7 +252,7 @@ local function LoadoutEditor(parent, stateMap, onChange)
 		cb:AddChoice("Off", "off")
 		for i = 1, HT.SLOTS do cb:AddChoice("Slot " .. i, i) end
 		cb:AddChoice("Menu only", "m")
-		if def.kind == "toggle" then cb:AddChoice("Passive (always on)", "p") end
+		if def.kind == "toggle" and not def.noPassive then cb:AddChoice("Passive (always on)", "p") end
 		cb:SetValue(text(stateMap[def.id]))
 		cb.OnSelect = function(_, _, _, data)
 			local v = data ~= "off" and data or nil
@@ -676,6 +676,7 @@ Tabs.server = function()
 			ServerSlider(p, "Teleport: range", CV.teleportRange)
 			ServerSlider(p, "Teleport: cooldown (s)", CV.teleportCooldown)
 			ServerSlider(p, "Noise radar: range", CV.noiseRadius)
+			ServerSlider(p, "Noise radar: seconds between pings per victim", CV.noiseInterval)
 			ServerSlider(p, "Footprints: range", CV.tracksRadius)
 			ServerSlider(p, "Footprints: visible (s)", CV.tracksTime)
 			ServerSlider(p, "Heartbeat sensor: range", CV.heartRange)
@@ -698,6 +699,7 @@ Tabs.server = function()
 			ServerSlider(p, "Mark: cooldown (s)", CV.markCooldown)
 			ServerSlider(p, "Mimic: max duration (s)", CV.mimicTime)
 			ServerSlider(p, "Mimic: cooldown (s)", CV.mimicCooldown)
+			ServerSlider(p, "Night vision: light radius", CV.nvRadius)
 			ServerSlider(p, "Door slam: radius (depends on the map)", CV.doorRadius)
 			ServerSlider(p, "Door slam: locked for (s)", CV.doorLockTime)
 			ServerSlider(p, "Door slam: cooldown (s)", CV.doorCooldown)
@@ -776,7 +778,50 @@ Tabs.game = function()
 			local weapons = {}
 			for _, w in ipairs(HT.HunterWeapons) do weapons[#weapons + 1] = { w[2], w[1] } end
 			AddCombo(p, "Hunter weapon", weapons, g.hunterWeapon, function(v) GameSet("hunterWeapon", v) end)
-			AddInfo(p, "Victims get no weapons. Building, noclip and spawning are off during a round. Changes apply to the next round.")
+			AddInfo(p, "Building, noclip and spawning are off during a round. Changes apply to the next round.")
+		end },
+		{ "Victim weapons", function(p)
+			-- ticked known weapons + extra classes typed in, saved as one comma list
+			local known, ticked, extra = {}, {}, {}
+			for _, w in ipairs(HT.VictimWeapons) do known[w[1]] = true end
+			for _, class in ipairs(HT.VictimWeaponList(g.victimWeapons)) do
+				if known[class] then ticked[class] = true else extra[#extra + 1] = class end
+			end
+			local function Save()
+				local list = {}
+				for _, w in ipairs(HT.VictimWeapons) do
+					if ticked[w[1]] then list[#list + 1] = w[1] end
+				end
+				for _, class in ipairs(extra) do list[#list + 1] = class end
+				GameSet("victimWeapons", table.concat(list, ","))
+			end
+
+			AddInfo(p, "Victims start every round with these weapons (with some ammo). No tick = no weapons.")
+			for _, w in ipairs(HT.VictimWeapons) do
+				AddCheck(p, w[2] .. "  (" .. w[1] .. ")", ticked[w[1]] == true, function(v)
+					ticked[w[1]] = v or nil
+					Save()
+				end)
+			end
+			local row = Row(p, "Other weapons (classes, comma separated)", 28)
+			local te = row:Add("DTextEntry")
+			te:Dock(FILL)
+			te:SetText(table.concat(extra, ", "))
+			te:SetPlaceholderText("e.g. weapon_rpg, m9k_glock")
+			local function Apply()
+				extra = {}
+				for _, class in ipairs(HT.VictimWeaponList(te:GetValue())) do
+					if not known[class] then extra[#extra + 1] = class end
+				end
+				Save()
+			end
+			te.OnEnter = Apply
+			te.OnLoseFocus = function(self)
+				Apply()
+				DTextEntry.OnLoseFocus(self)
+			end
+			AddCheck(p, "Victims can hurt the hunter with their weapons", g.victimDamage, function(v) GameSet("victimDamage", v) end)
+			AddInfo(p, "Off: weapons only work against NPCs, props and doors. Victims never hurt each other.")
 		end },
 		{ "Hunters", function(p)
 			AddSlider(p, "Number of hunters", 1, 8, 0, g.hunterCount, function(v) GameSet("hunterCount", math.Round(v)) end)

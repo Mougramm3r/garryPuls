@@ -51,7 +51,8 @@ Hinweis: F5 macht in GMod auch einen Screenshot. Wen das stört, legt das Menü 
 ## Ablauf einer Runde
 
 1. Der Admin stellt im Tab **Game** alles ein und drückt **Start round**.
-2. Jäger werden bestimmt (zufällig oder vorausgewählt). Alle respawnen, Jäger bekommen ihre Waffe (Standard: Brechstange), Opfer keine.
+2. Jäger werden bestimmt (zufällig oder vorausgewählt). Alle respawnen, Jäger bekommen ihre Waffe (Standard: Brechstange), Opfer die Startwaffen aus **Game → Victim weapons** (Standard: keine).
+   Ob Opfer dem Jäger damit Schaden machen dürfen, ist dort einstellbar (Standard: aus).
    Bauen, Noclip und Spawnen sind während der Runde aus.
 3. **Versteckphase** (Standard 30 s, abschaltbar): Die Opfer verstecken sich, der Jäger ist eingefroren und sieht nichts.
    Bei „Player choice“ wählt der Jäger in dieser Zeit seine Rolle (wer nicht wählt, bekommt eine zufällige).
@@ -70,7 +71,7 @@ Opfer können dem Jäger keinen direkten Schaden machen.
 ## Rollen
 
 Eine Rolle ist ein Jäger-Preset: ein Name und welche Fähigkeit auf welchem Slot liegt.
-Jede Fähigkeit ist **Off**, auf **Slot 1–4** oder (bei An/Aus-Fähigkeiten) **Passive** = immer an.
+Jede Fähigkeit ist **Off**, auf **Slot 1–4** oder (bei An/Aus-Fähigkeiten) **Passive** = immer an. Ausnahme: **Noise Radar** kann nicht passiv sein.
 Zusätzlich gibt es **Menu only**: Die Fähigkeit hat keine Taste und wird im Hunter-Menü mit „Use“ ausgelöst (beliebig viele pro Rolle).
 Rollen bearbeitest du im Tab **Game → Role editor**. Sie werden auf dem Server gespeichert (`data/pulse/roles.json`).
 
@@ -79,7 +80,7 @@ Mitgelieferte Rollen:
 | Rolle | Slots | Menü | Passiv |
 |---|---|---|---|
 | Stalker | 1 Behind You, 2 Scary Sounds, 3 Teleport, 4 Roar | Stalk | Footprints, Heartbeat Sensor |
-| Tracker | 1 Chaser Pulse, 2 Roar, 3 Scary Sounds, 4 Stalk | – | Noise Radar, Footprints |
+| Tracker | 1 Chaser Pulse, 2 Roar, 3 Noise Radar, 4 Scary Sounds | Stalk | Footprints |
 | Brute | 1 Roar, 2 Teleport, 3 Jump Scare, 4 Aim Assist | – | Heartbeat Sensor |
 | Seer | 1 Radar, 2 Chaser Pulse, 3 Jump Scare, 4 Scary Sounds | Stalk | Heartbeat Sensor |
 | Phantom | 1 Mimic, 2 Blackout, 3 Trap, 4 Door Slam | Mark | Night Vision, Heartbeat Sensor |
@@ -96,18 +97,18 @@ Rollenvergabe (Game → Role assignment): **Fixed role**, **Player choice** (Aus
 | Scary Sounds | Active | Soundauswahl (Kinderlachen, Schreie …), abspielbar bei dir, hinter einem Opfer, wo du hinschaust oder überall |
 | Aim Assist | Toggle | Zieht das Fadenkreuz auf sichtbare Opfer (Kreis zeigt den Winkel) |
 | Radar | Toggle | Alle Opfer rot umrandet durch Wände |
-| Noise Radar | Toggle | Wer rennt, springt oder schießt, erscheint als Ping |
+| Noise Radar | Toggle | Wer rennt, springt oder schießt, erscheint als Ping (pro Opfer höchstens alle 4 s). Nur an/aus, nicht passiv. Solange an, kannst du nicht sprinten |
 | Footprints | Toggle | Leuchtende Fußspuren der Opfer |
 | Heartbeat Sensor | Toggle | Herzschlag wird schneller, je näher ein Opfer ist |
 | Stalk | Active | Ein paar Sekunden das nächste Opfer beobachten (Kamera hinter ihm), dein Körper bleibt eingefroren stehen |
-| Behind You | Active | Direkt hinter das nächste Opfer teleportieren, eingefroren, kein Angriff. Das Opfer hört Atmen und Herzrasen. Dreht es sich um: leises Geräusch, du verschwindest zurück. Geht es weg: nichts passiert, du kehrst zurück |
+| Behind You | Active | Direkt hinter das nächste Opfer teleportieren, eingefroren, kein Angriff. Das Opfer hört Atmen und Herzrasen. Dreht es sich um: leises Geräusch, du bleibst noch 1 s sichtbar und verschwindest dann zurück. Du schaust immer zum Opfer. Geht es weg: nichts passiert, du kehrst zurück |
 | Jump Scare | Active | Alle Opfer im Radius sehen kurz dein Gesicht direkt vor sich |
 | Blackout | Active | Opfer im Radius sehen kurz fast nichts, ihre Taschenlampe geht aus und lässt sich nicht einschalten. Schaltbare Map-Lampen gehen zusätzlich aus (experimentell, hängt von der Map ab) |
 | Trap | Active | Falle auf den Boden legen (max. 3). Tritt ein Opfer hinein, hängt es fest, es klappert laut und du bekommst einen Ping |
 | Mark | Active | Ein sichtbares Opfer anvisieren: Es leuchtet 10 s lila durch Wände |
 | Mimic | Active | Du siehst aus wie ein zufälliges Opfer, bis du angreifst, getroffen wirst oder die Zeit abläuft. Namensanzeigen sind in Runden aus |
 | Door Slam | Active | Türen in der Nähe knallen zu und sind kurz verschlossen (funktioniert nur auf Maps mit normalen Türen) |
-| Night Vision | Toggle | Grüne Nachtsicht mit Licht, das nur du siehst |
+| Night Vision | Toggle | Grüne, verrauschte und leicht unscharfe Nachtsicht mit Scanlines. Licht nur in einem kleinen Radius (einstellbar) |
 
 HUD des Jägers oben rechts: Slot 1–4 mit Status (READY, Abklingzeit, ACTIVE, ON/OFF) und Taste, darunter die Menü-Taste
 und eine Zeile für die zuletzt benutzte Fähigkeit (läuft … / Abklingzeit …).
@@ -158,7 +159,6 @@ indem sie darüberlaufen oder **E** drücken (außerhalb von Runden darf jeder a
 | Item | Wirkung |
 |---|---|
 | Calming Pills | Sanity +30 % |
-| Medkit | +50 Leben |
 | Glowstick | Werfen, leuchtet 60 s grün |
 | Camera Flash | Blendet einen Jäger vor dir (einmalig, breiterer Winkel als die Taschenlampe) |
 

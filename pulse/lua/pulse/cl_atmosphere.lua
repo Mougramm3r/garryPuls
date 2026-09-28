@@ -128,27 +128,77 @@ hook.Add("RenderScreenspaceEffects", "HT_BlackoutNV", function()
 		})
 	end
 
+	-- night vision: green, no extra brightness far away (only the small light around the hunter)
 	if HT.IsOn(me, "nightvision") then
+		local flicker = math.sin(CurTime() * 23) * 0.01 + math.Rand(-0.01, 0.01)
 		DrawColorModify({
-			["$pp_colour_addr"] = 0, ["$pp_colour_addg"] = 0.08, ["$pp_colour_addb"] = 0,
-			["$pp_colour_brightness"] = 0.12, ["$pp_colour_contrast"] = 1.3,
-			["$pp_colour_colour"] = 0.25,
-			["$pp_colour_mulr"] = 0, ["$pp_colour_mulg"] = 0.4, ["$pp_colour_mulb"] = 0,
+			["$pp_colour_addr"] = 0, ["$pp_colour_addg"] = 0.03, ["$pp_colour_addb"] = 0,
+			["$pp_colour_brightness"] = flicker, ["$pp_colour_contrast"] = 1.15,
+			["$pp_colour_colour"] = 0.1,
+			["$pp_colour_mulr"] = 0, ["$pp_colour_mulg"] = 0.3, ["$pp_colour_mulb"] = 0,
 		})
+		DrawMotionBlur(0.35, 0.6, 0.01)
 	end
 end)
 
+-- The light only reaches a small radius (Server tab: "Night vision: light radius")
 hook.Add("Think", "HT_NightVisionLight", function()
 	local me = LP()
 	if not me or not HT.IsOn(me, "nightvision") then return end
 	local light = DynamicLight(me:EntIndex() + 4096)
 	if light then
 		light.pos = me:EyePos()
-		light.r, light.g, light.b = 140, 255, 140
-		light.brightness = 0.6
-		light.decay = 2000
-		light.size = 1400
+		light.r, light.g, light.b = 120, 255, 120
+		light.brightness = 1.2
+		light.decay = 3000
+		light.size = HT.CV.nvRadius:GetFloat()
 		light.dietime = CurTime() + 0.2
+	end
+end)
+
+-- Blurry, grainy picture with scanlines and dark edges, like an old night vision camera
+local blurMat = Material("pp/blurscreen")
+
+hook.Add("HUDPaintBackground", "HT_NightVisionFX", function()
+	local me = LP()
+	if not me or not HT.IsOn(me, "nightvision") then return end
+	local w, h = ScrW(), ScrH()
+
+	-- soft blur
+	surface.SetMaterial(blurMat)
+	surface.SetDrawColor(255, 255, 255, 255)
+	for i = 1, 2 do
+		blurMat:SetFloat("$blur", i * 0.8)
+		blurMat:Recompute()
+		render.UpdateScreenEffectTexture()
+		surface.DrawTexturedRect(0, 0, w, h)
+	end
+
+	-- grain
+	for _ = 1, 700 do
+		local v = math.random(0, 1) * 200
+		surface.SetDrawColor(v * 0.6, v, v * 0.6, math.random(20, 60))
+		local size = math.random(1, 3)
+		surface.DrawRect(math.random(0, w), math.random(0, h), size, size)
+	end
+
+	-- scanlines and a slow rolling band
+	surface.SetDrawColor(0, 0, 0, 70)
+	for y = 0, h, 4 do surface.DrawRect(0, y, w, 2) end
+	local band = (CurTime() * 90) % (h + 120) - 60
+	surface.SetDrawColor(160, 255, 160, 10)
+	surface.DrawRect(0, band, w, 40)
+
+	-- vignette
+	local steps = 16
+	local bw, bh = w * 0.2 / steps, h * 0.2 / steps
+	surface.SetDrawColor(0, 0, 0, 28)
+	for i = 0, steps - 1 do
+		local x, y = i * bw, i * bh
+		surface.DrawRect(x, y, w - 2 * x, bh)           -- top
+		surface.DrawRect(x, h - y - bh, w - 2 * x, bh)  -- bottom
+		surface.DrawRect(x, y + bh, bw, h - 2 * y - 2 * bh)       -- left
+		surface.DrawRect(w - x - bw, y + bh, bw, h - 2 * y - 2 * bh) -- right
 	end
 end)
 
