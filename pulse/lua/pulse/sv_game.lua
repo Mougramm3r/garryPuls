@@ -44,6 +44,23 @@ local function ValidateGame(g)
 	for _, w in ipairs(HT.HunterWeapons) do
 		if w[1] == g.hunterWeapon then out.hunterWeapon = w[1] end
 	end
+
+	local function B(v, def)
+		if v == nil then return def end
+		return v == true or v == 1
+	end
+	out.finalPhase = B(g.finalPhase, d.finalPhase)
+	out.finalBoost = math.Clamp(tonumber(g.finalBoost) or d.finalBoost, 0, 30)
+	out.musicLast = math.Clamp(math.floor(tonumber(g.musicLast) or d.musicLast), 0, 600)
+	out.ambient = B(g.ambient, d.ambient)
+	out.ambientVolume = math.Clamp(tonumber(g.ambientVolume) or d.ambientVolume, 0, 1)
+	out.items = B(g.items, d.items)
+	out.itemCount = math.Clamp(math.floor(tonumber(g.itemCount) or d.itemCount), 0, 60)
+	for _, item in ipairs(HT.Items) do out[item.key] = B(g[item.key], d[item.key]) end
+	out.seriesMode = (g.seriesMode == "fixed") and "fixed" or "everyone"
+	out.seriesRounds = math.Clamp(math.floor(tonumber(g.seriesRounds) or d.seriesRounds), 1, 50)
+	out.seriesDelay = math.Clamp(math.floor(tonumber(g.seriesDelay) or d.seriesDelay), 5, 120)
+	out.botsWalk = B(g.botsWalk, d.botsWalk)
 	return out
 end
 
@@ -60,6 +77,22 @@ local function Load()
 	end
 	if #HT.Roles == 0 then HT.Roles = table.Copy(HT.DefaultRoles) end
 
+	-- new example roles are added once to existing role files
+	local added = util.JSONToTable(file.Read(DIR .. "/added_roles.json", "DATA") or "") or {}
+	local changed = false
+	for _, r in ipairs(HT.DefaultRoles) do
+		if not added[r.name] then
+			added[r.name] = true
+			changed = true
+			if not HT.FindRole(r.name) then HT.Roles[#HT.Roles + 1] = table.Copy(r) end
+		end
+	end
+	if changed then
+		file.CreateDir(DIR)
+		file.Write(DIR .. "/added_roles.json", util.TableToJSON(added))
+		file.Write(ROLES_FILE, util.TableToJSON(HT.Roles, true))
+	end
+
 	local g = util.JSONToTable(file.Read(GAME_FILE, "DATA") or "")
 	local merged = table.Copy(HT.GameDefaults)
 	if istable(g) then table.Merge(merged, g) end
@@ -67,9 +100,17 @@ local function Load()
 end
 Load()
 
+-- Round series: several rounds with points, the hunter rotates
+HT.Series = { active = false, round = 0, total = 0, scores = {} }
+
 local function SendData(target)
+	local series = HT.Series
 	net.Start("HT_Data")
-	net.WriteString(util.TableToJSON({ roles = HT.Roles, game = HT.Game }))
+	net.WriteString(util.TableToJSON({
+		roles = HT.Roles,
+		game = HT.Game,
+		series = { active = series.active, round = series.round, total = series.total },
+	}))
 	if target then net.Send(target) else net.Broadcast() end
 end
 
@@ -214,6 +255,8 @@ local function StartHunt()
 	PrintMessage(HUD_PRINTTALK, "[PULSE] The hunt begins! Survive for " .. HT.FormatTime(HT.Game.roundTime) .. ".")
 end
 
+local RemoveItems -- defined below (items on the map)
+
 local function EndRound(winner, reason)
 	if not round then return end
 	local now = CurTime()
@@ -241,18 +284,68 @@ local function EndRound(winner, reason)
 	table.sort(rows, function(a, b) return a.sort > b.sort end)
 	for _, r in ipairs(rows) do r.sort = nil end
 
+	-- series: points for this round
+	local series = HT.Series
+	local seriesInfo
+	if series.active and winner ~= "none" then
+		for ply, p in pairs(round.players) do
+			local sc = series.scores[p.key]
+			if not sc then
+				sc = { name = p.name, points = 0, hunted = 0, catches = 0, survived = 0 }
+				series.scores[p.key] = sc
+			end
+			if p.hunter then
+				sc.hunted = sc.hunted + 1
+				sc.catches = sc.catches + p.catches
+				sc.points = sc.points + p.catches * 2 + (winner == "hunter" and 3 or 0)
+			else
+				local alive = IsAliveInRound(ply) and not p.died
+				local t = math.max(0, (p.died or now) - huntStart)
+				if alive then
+					sc.survived = sc.survived + 1
+					sc.points = sc.points + 3
+				end
+				sc.points = sc.points + math.floor(t / 60)
+			end
+		end
+		series.round = series.round + 1
+
+		local standings = {}
+		for _, sc in pairs(series.scores) do standings[#standings + 1] = sc end
+		table.sort(standings, function(a, b) return a.points > b.points end)
+
+		local final = series.round >= series.total
+		seriesInfo = { round = series.round, total = series.total, final = final, standings = standings,
+			nextIn = not final and HT.Game.seriesDelay or nil }
+		if final then
+			series.active = false
+		else
+			SetGlobalFloat("HT_NextRound", now + HT.Game.seriesDelay)
+			timer.Create("HT_SeriesNext", HT.Game.seriesDelay, 1, function()
+				if HT.Series.active and HT.StartRound then HT.StartRound() end
+			end)
+		end
+	elseif winner == "none" then
+		series.active = false
+		timer.Remove("HT_SeriesNext")
+	end
+
 	net.Start("HT_RoundEnd")
 	net.WriteString(util.TableToJSON({
 		winner = winner,
 		reason = reason,
 		duration = HT.FormatTime(now - huntStart),
 		rows = rows,
+		series = seriesInfo,
 	}))
 	net.Broadcast()
 
+	RemoveItems()
 	round = nil
 	SetPhase("lobby")
 	SetGlobalString("HT_HunterNames", "")
+	SetGlobalBool("HT_Final", false)
+	SendData()
 
 	for _, ply in ipairs(player.GetAll()) do
 		ply.HT_RoundRole = nil
@@ -266,28 +359,144 @@ local function EndRound(winner, reason)
 end
 HT.EndRound = EndRound
 
-local function StartRound(admin)
+local function PlayerKey(ply)
+	return ply:IsBot() and ("BOT_" .. ply:Nick()) or ply:SteamID64() or ply:Nick()
+end
+
+local function SeriesScore(ply)
+	local key = PlayerKey(ply)
+	local sc = HT.Series.scores[key]
+	if not sc then
+		sc = { name = ply:Nick(), points = 0, hunted = 0, catches = 0, survived = 0 }
+		HT.Series.scores[key] = sc
+	end
+	return sc
+end
+
+------------------------------------------------------------------------
+-- Items on the map
+------------------------------------------------------------------------
+
+local SPAWN_CLASSES = { "info_player_start", "info_player_deathmatch", "info_player_combine", "info_player_rebel",
+	"info_player_counterterrorist", "info_player_terrorist", "gmod_player_start" }
+
+-- Random spots on the floor: from the navmesh if the map has one, otherwise around spawn points
+local function RandomFloorSpot()
+	if navmesh.IsLoaded() then
+		local areas = navmesh.GetAllNavAreas()
+		if #areas > 0 then
+			local area = areas[math.random(#areas)]
+			return area:GetRandomPoint()
+		end
+	end
+
+	local spawns = {}
+	for _, cls in ipairs(SPAWN_CLASSES) do
+		for _, e in ipairs(ents.FindByClass(cls)) do spawns[#spawns + 1] = e:GetPos() end
+	end
+	for _, ply in ipairs(player.GetAll()) do spawns[#spawns + 1] = ply:GetPos() end
+	if #spawns == 0 then return end
+
+	local from = spawns[math.random(#spawns)] + Vector(0, 0, 40)
+	local dir = Angle(0, math.random(0, 359), 0):Forward()
+	local tr = util.TraceLine({ start = from, endpos = from + dir * math.random(150, 1500), mask = MASK_SOLID_BRUSHONLY })
+	local base = tr.HitPos - dir * 24
+	local down = util.TraceLine({ start = base, endpos = base - Vector(0, 0, 400), mask = MASK_SOLID_BRUSHONLY })
+	if down.Hit and down.HitNormal.z > 0.7 then return down.HitPos end
+end
+
+function RemoveItems()
+	if round and round.items then
+		for _, e in ipairs(round.items) do
+			if IsValid(e) and not IsValid(e:GetOwner()) then e:Remove() end
+		end
+	end
+	-- items still carried by players
+	for _, ply in ipairs(player.GetAll()) do
+		for _, item in ipairs(HT.Items) do
+			if ply:HasWeapon(item.class) then ply:StripWeapon(item.class) end
+		end
+	end
+end
+
+local function SpawnItems()
+	local g = HT.Game
+	round.items = {}
+	if not g.items or g.itemCount <= 0 then return end
+	local classes = {}
+	for _, item in ipairs(HT.Items) do
+		if g[item.key] then classes[#classes + 1] = item.class end
+	end
+	if #classes == 0 then return end
+
+	for _ = 1, g.itemCount do
+		local pos
+		for _ = 1, 6 do
+			pos = RandomFloorSpot()
+			if pos then break end
+		end
+		if pos then
+			local ent = ents.Create(classes[math.random(#classes)])
+			if IsValid(ent) then
+				ent:SetPos(pos + Vector(0, 0, 12))
+				ent:Spawn()
+				round.items[#round.items + 1] = ent
+			end
+		end
+	end
+end
+
+-- Only victims pick up items, and only one of each kind
+hook.Add("PlayerCanPickupWeapon", "HT_Items", function(ply, wep)
+	local cls = wep:GetClass()
+	if string.StartWith(cls, "pulse_item_") then
+		return HT.IsVictim(ply) and not ply:HasWeapon(cls)
+	end
+end)
+
+local function StartRound(admin, opts)
+	opts = opts or {}
 	if round then return end
 	local plys = player.GetAll()
 	if #plys < 2 then
-		if IsValid(admin) then admin:ChatPrint("[PULSE] You need at least 2 players to start a round.") end
+		if IsValid(admin) then
+			admin:ChatPrint("[PULSE] You need at least 2 players to start a round.")
+		else
+			PrintMessage(HUD_PRINTTALK, "[PULSE] Not enough players for the next round. The series is over.")
+			HT.Series.active = false
+			SendData()
+		end
 		return
 	end
 
 	local g = HT.Game
 	local count = math.Clamp(g.hunterCount, 1, #plys - 1)
 
-	-- pick hunters: preselected first, then random
+	-- pick hunters: forced (test), series rotation, preselected, then random
 	local hunters, rest = {}, {}
-	for _, ply in ipairs(plys) do
-		if g.hunterSelect == "preselected" and ply:GetNWBool("HT_Preselected", false) and #hunters < count then
-			hunters[#hunters + 1] = ply
-		else
-			rest[#rest + 1] = ply
+	if opts.hunters then
+		hunters = opts.hunters
+		for _, ply in ipairs(plys) do
+			if not table.HasValue(hunters, ply) then rest[#rest + 1] = ply end
 		end
+	elseif HT.Series.active then
+		-- whoever was hunter least often goes next
+		table.Shuffle(plys)
+		table.sort(plys, function(a, b) return SeriesScore(a).hunted < SeriesScore(b).hunted end)
+		for i, ply in ipairs(plys) do
+			if i <= count then hunters[#hunters + 1] = ply else rest[#rest + 1] = ply end
+		end
+	else
+		for _, ply in ipairs(plys) do
+			if g.hunterSelect == "preselected" and ply:GetNWBool("HT_Preselected", false) and #hunters < count then
+				hunters[#hunters + 1] = ply
+			else
+				rest[#rest + 1] = ply
+			end
+		end
+		table.Shuffle(rest)
+		while #hunters < count do hunters[#hunters + 1] = table.remove(rest) end
 	end
-	table.Shuffle(rest)
-	while #hunters < count do hunters[#hunters + 1] = table.remove(rest) end
 
 	round = { players = {}, started = CurTime() }
 	local isHunter = {}
@@ -298,18 +507,25 @@ local function StartRound(admin)
 		ply.HT_RoundRole = nil
 		HT.SetHunter(ply, false, true)
 		HT.ResetAbilityState(ply)
-		round.players[ply] = { name = ply:Nick(), hunter = isHunter[ply] or false, catches = 0 }
+		round.players[ply] = { name = ply:Nick(), hunter = isHunter[ply] or false, catches = 0, key = PlayerKey(ply) }
 		if isHunter[ply] then names[#names + 1] = ply:Nick() end
 	end
 	SetGlobalString("HT_HunterNames", table.concat(names, ", "))
 
+	round.victimCount = #plys - #hunters
+	SetGlobalBool("HT_Final", false)
+	SetGlobalFloat("HT_NextRound", 0)
+
 	-- prep phase: hiding time, also covers the role choice
 	local prep = g.prepEnabled and g.prepTime or 0
+	if opts.prep then prep = opts.prep end
 	if g.roleMode == "choice" then prep = math.max(prep, g.choiceTime) end
 	SetPhase(prep > 0 and "prep" or "hunt", prep)
 
 	for _, h in ipairs(hunters) do HT.SetHunter(h, true, true) end
+	RemoveItems()
 	for _, ply in ipairs(plys) do Respawn(ply) end
+	SpawnItems()
 
 	if g.roleMode == "fixed" then
 		for _, h in ipairs(hunters) do AssignRole(h, g.fixedRole) end
@@ -333,13 +549,82 @@ local function StartRound(admin)
 	end
 end
 
+HT.StartRound = StartRound
+
+local function StartSeries(admin)
+	if round then return end
+	local plys = player.GetAll()
+	if #plys < 2 then
+		if IsValid(admin) then admin:ChatPrint("[PULSE] You need at least 2 players to start a series.") end
+		return
+	end
+	local g = HT.Game
+	local total = g.seriesMode == "fixed" and g.seriesRounds or math.ceil(#plys / math.max(1, g.hunterCount))
+	HT.Series = { active = true, round = 0, total = total, scores = {} }
+	for _, ply in ipairs(plys) do SeriesScore(ply) end
+	PrintMessage(HUD_PRINTTALK, "[PULSE] A series of " .. total .. " rounds begins!")
+	SendData()
+	StartRound(admin)
+end
+
 net.Receive("HT_RoundCmd", function(_, ply)
 	if not HT.IsManager(ply) then return end
 	local cmd = net.ReadString()
 	if cmd == "start" then
 		StartRound(ply)
+	elseif cmd == "series" then
+		StartSeries(ply)
 	elseif cmd == "stop" then
-		EndRound("none", "Round stopped by " .. ply:Nick() .. ".")
+		timer.Remove("HT_SeriesNext")
+		HT.Series.active = false
+		SetGlobalFloat("HT_NextRound", 0)
+		if round then EndRound("none", "Stopped by " .. ply:Nick() .. ".") else SendData() end
+
+	-- test mode
+	elseif cmd == "testround" then
+		StartRound(ply, { hunters = { ply }, prep = 5 })
+	elseif cmd == "addbot" then
+		RunConsoleCommand("bot")
+	elseif cmd == "kickbots" then
+		for _, b in ipairs(player.GetBots()) do b:Kick("Test finished") end
+	elseif cmd == "items" then
+		for _, item in ipairs(HT.Items) do
+			local wep = ents.Create(item.class)
+			if IsValid(wep) then
+				wep:SetPos(ply:GetPos() + Vector(0, 0, 20))
+				wep:Spawn()
+			end
+		end
+	elseif cmd == "sanity0" then
+		ply:SetNWFloat("HT_Sanity", 0)
+	elseif cmd == "sanity100" then
+		ply:SetNWFloat("HT_Sanity", 100)
+	end
+end)
+
+-- Test mode: bots wander around, sometimes sprint or jump
+hook.Add("StartCommand", "HT_TestBots", function(ply, cmd)
+	if not ply:IsBot() or not HT.Game.botsWalk or not ply:Alive() then return end
+	local now = CurTime()
+	if now > (ply.HT_BotNext or 0) or ply:GetVelocity():Length2DSqr() < 20 ^ 2 and now > (ply.HT_BotStuck or 0) then
+		ply.HT_BotNext = now + math.Rand(2, 5)
+		ply.HT_BotStuck = now + 1
+		ply.HT_BotYaw = math.random(0, 359)
+		ply.HT_BotSprint = math.random() < 0.3
+		ply.HT_BotCrouch = math.random() < 0.1
+	end
+	cmd:ClearMovement()
+	cmd:ClearButtons()
+	local ang = Angle(0, ply.HT_BotYaw or 0, 0)
+	cmd:SetViewAngles(ang)
+	ply:SetEyeAngles(ang)
+	if ply.HT_BotCrouch then
+		cmd:SetButtons(IN_DUCK)
+	else
+		cmd:SetForwardMove(ply.HT_BotSprint and 400 or 200)
+		local buttons = ply.HT_BotSprint and IN_SPEED or 0
+		if math.random() < 0.01 then buttons = bit.bor(buttons, IN_JUMP) end
+		cmd:SetButtons(buttons)
 	end
 end)
 
@@ -370,6 +655,19 @@ local function CheckRound()
 	for ply, p in pairs(round.players) do
 		if IsAliveInRound(ply) and not p.died then
 			if p.hunter then huntersAlive = huntersAlive + 1 else victimsAlive = victimsAlive + 1 end
+		end
+	end
+
+	-- final phase: only one victim left
+	if HT.Phase() == "hunt" and HT.Game.finalPhase and not round.final and round.victimCount >= 2 and victimsAlive == 1 then
+		round.final = true
+		SetGlobalBool("HT_Final", true)
+		for ply, p in pairs(round.players) do
+			if not p.hunter and IsAliveInRound(ply) and not p.died then
+				ply:SetNWFloat("HT_BoostFactor", 1.4)
+				ply:SetNWFloat("HT_BoostUntil", now + HT.Game.finalBoost)
+				PrintMessage(HUD_PRINTCENTER, "Final phase! Only " .. ply:Nick() .. " is left.")
+			end
 		end
 	end
 

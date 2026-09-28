@@ -7,7 +7,7 @@ local CV = HT.CV
 for _, name in ipairs({
 	"HT_Set", "HT_Ability", "HT_AdminSetHunter", "HT_AdminSetCVar",
 	"HT_Roared", "HT_Ping", "HT_Tracks", "HT_Heart", "HT_Blind",
-	"HT_Jumpscare", "HT_ForceHeart",
+	"HT_Jumpscare", "HT_ForceHeart", "HT_Blackout",
 	"HT_SoundList", "HT_SoundPlay", "HT_SoundGlobal",
 }) do
 	util.AddNetworkString(name)
@@ -57,7 +57,11 @@ function HT.ResetAbilityState(ply)
 	ply:SetNWFloat("HT_Stamina", 100)
 	ply:SetNWBool("HT_Exhausted", false)
 	ply:SetNWFloat("HT_RevealUntil", 0)
+	ply:SetNWFloat("HT_RootUntil", 0)
+	ply:SetNWFloat("HT_BlackoutUntil", 0)
 	ply.HT_BehindVictim = nil
+	if HT.EndMimic then HT.EndMimic(ply) end
+	if HT.RemoveTraps then HT.RemoveTraps(ply) end
 end
 
 -- Scare abilities and scary things lower a victim's sanity
@@ -370,6 +374,170 @@ local Actions = {
 	end,
 }
 
+-- Hunter-only: Blackout, Trap, Mark, Mimic, Door Slam
+local DOOR_CLASSES = { prop_door_rotating = true, func_door = true, func_door_rotating = true }
+local LIGHT_CLASSES = { light = true, light_spot = true, light_dynamic = true }
+
+-- Ends the victim disguise and brings back the hunter's look
+function HT.EndMimic(ply)
+	if not ply.HT_MimicOld then return end
+	local old = ply.HT_MimicOld
+	ply.HT_MimicOld = nil
+	ply:SetNWFloat("HT_Active_mimic", 0)
+	if IsValid(ply) then
+		ply:SetModel(old.model)
+		ply:SetPlayerColor(old.color)
+		ply:DrawWorldModel(true)
+	end
+end
+
+local traps = {}
+
+function HT.RemoveTraps(ply)
+	for _, t in ipairs(traps[ply] or {}) do
+		if IsValid(t) then t:Remove() end
+	end
+	traps[ply] = nil
+end
+
+Actions.blackout = function(ply, now)
+	local duration = CV.blackoutTime:GetFloat()
+	local radius = CV.blackoutRadius:GetFloat()
+	local origin = ply:GetPos()
+	local victims = {}
+	for _, target in ipairs(player.GetAll()) do
+		if HT.IsTarget(ply, target) and origin:DistToSqr(target:GetPos()) <= radius ^ 2 then
+			victims[#victims + 1] = target
+			target:SetNWFloat("HT_BlackoutUntil", now + duration)
+			if target:FlashlightIsOn() then target:Flashlight(false) end
+			HT.Scare(target, 5)
+		end
+	end
+	if #victims > 0 then
+		net.Start("HT_Blackout")
+		net.WriteFloat(duration)
+		net.Send(victims)
+	end
+
+	-- experimental: map lights that the mapper made switchable
+	if CV.blackoutMapLights:GetBool() then
+		for _, ent in ipairs(ents.FindInSphere(origin, radius)) do
+			if LIGHT_CLASSES[ent:GetClass()] and ent:GetName() ~= "" then
+				ent:Fire("TurnOff")
+				timer.Simple(duration, function() if IsValid(ent) then ent:Fire("TurnOn") end end)
+			end
+		end
+	end
+	sound.Play("ambient/energy/power_off1.wav", ply:GetPos(), 90, 80)
+	return CV.blackoutCooldown:GetFloat(), duration
+end
+
+Actions.trap = function(ply)
+	traps[ply] = traps[ply] or {}
+	for i = #traps[ply], 1, -1 do
+		if not IsValid(traps[ply][i]) then table.remove(traps[ply], i) end
+	end
+	if #traps[ply] >= CV.trapMax:GetInt() then
+		ply:ChatPrint("[PULSE] You already placed " .. #traps[ply] .. " traps.")
+		return
+	end
+
+	local tr = util.TraceLine({ start = ply:EyePos(), endpos = ply:EyePos() + ply:GetAimVector() * 150, filter = ply, mask = MASK_SOLID_BRUSHONLY })
+	local ground = util.TraceLine({ start = tr.HitPos + Vector(0, 0, 10), endpos = tr.HitPos - Vector(0, 0, 100), filter = ply, mask = MASK_SOLID_BRUSHONLY })
+	if not ground.Hit or ground.HitNormal.z < 0.7 then ply:ChatPrint("[PULSE] Place the trap on the floor.") return end
+
+	local trap = ents.Create("pulse_trap")
+	if not IsValid(trap) then return end
+	trap:SetPos(ground.HitPos + Vector(0, 0, 1))
+	trap:SetAngles(Angle(0, ply:EyeAngles().y, 0))
+	trap:SetOwner(ply)
+	trap:Spawn()
+	table.insert(traps[ply], trap)
+	return CV.trapCooldown:GetFloat()
+end
+
+Actions.mark = function(ply, now)
+	local eye, aim = ply:EyePos(), ply:GetAimVector()
+	local best, bestDot = nil, math.cos(math.rad(10))
+	for _, target in ipairs(player.GetAll()) do
+		if HT.IsTarget(ply, target) then
+			local dir = target:WorldSpaceCenter() - eye
+			if dir:LengthSqr() < 5000 ^ 2 then
+				dir:Normalize()
+				local dot = aim:Dot(dir)
+				if dot > bestDot then
+					local tr = util.TraceLine({ start = eye, endpos = target:WorldSpaceCenter(), filter = { ply, target }, mask = MASK_VISIBLE })
+					if not tr.Hit then best, bestDot = target, dot end
+				end
+			end
+		end
+	end
+	if not best then ply:ChatPrint("[PULSE] Aim at a victim you can see.") return end
+	best:SetNWFloat("HT_RevealUntil", now + CV.markTime:GetFloat())
+	ply:ChatPrint("[PULSE] Marked " .. best:Nick() .. ".")
+	return CV.markCooldown:GetFloat(), CV.markTime:GetFloat()
+end
+
+Actions.mimic = function(ply)
+	local victims = {}
+	for _, target in ipairs(player.GetAll()) do
+		if HT.IsTarget(ply, target) then victims[#victims + 1] = target end
+	end
+	if #victims == 0 then ply:ChatPrint("[PULSE] No victim to copy.") return end
+	local copy = victims[math.random(#victims)]
+
+	if not ply.HT_MimicOld then
+		ply.HT_MimicOld = { model = ply:GetModel(), color = ply:GetPlayerColor() }
+	end
+	ply:SetModel(copy:GetModel())
+	ply:SetPlayerColor(copy:GetPlayerColor())
+	ply:DrawWorldModel(false)
+	ply:ChatPrint("[PULSE] You look like " .. copy:Nick() .. ". Attacking ends the disguise.")
+	local duration = CV.mimicTime:GetFloat()
+	return duration + CV.mimicCooldown:GetFloat(), duration
+end
+
+Actions.doorslam = function(ply)
+	local count = 0
+	local lock = CV.doorLockTime:GetFloat()
+	for _, ent in ipairs(ents.FindInSphere(ply:GetPos(), CV.doorRadius:GetFloat())) do
+		if DOOR_CLASSES[ent:GetClass()] then
+			count = count + 1
+			ent:Fire("Close")
+			ent:Fire("Lock")
+			timer.Simple(lock, function() if IsValid(ent) then ent:Fire("Unlock") end end)
+			sound.Play("doors/heavy_metal_stop1.wav", ent:WorldSpaceCenter(), 85, math.random(90, 110))
+		end
+	end
+	if count == 0 then ply:ChatPrint("[PULSE] No doors nearby. Door Slam depends on the map.") return end
+	for _, target in ipairs(player.GetAll()) do
+		if HT.IsTarget(ply, target) and target:GetPos():DistToSqr(ply:GetPos()) < CV.doorRadius:GetFloat() ^ 2 then
+			HT.Scare(target, 5)
+		end
+	end
+	return CV.doorCooldown:GetFloat(), lock
+end
+
+-- Mimic ends when the hunter attacks, gets hurt or the time is up
+hook.Add("KeyPress", "HT_MimicAttack", function(ply, key)
+	if ply.HT_MimicOld and (key == IN_ATTACK or key == IN_ATTACK2) then HT.EndMimic(ply) end
+end)
+hook.Add("EntityTakeDamage", "HT_MimicHurt", function(ent)
+	if IsValid(ent) and ent:IsPlayer() and ent.HT_MimicOld then HT.EndMimic(ent) end
+end)
+timer.Create("HT_MimicTick", 0.5, 0, function()
+	for _, ply in ipairs(player.GetAll()) do
+		if ply.HT_MimicOld and (not HT.IsActive(ply, "mimic") or not HT.IsHunter(ply) or not ply:Alive()) then HT.EndMimic(ply) end
+	end
+end)
+
+-- No flashlight during a blackout
+hook.Add("PlayerSwitchFlashlight", "HT_Blackout", function(ply, on)
+	if on and ply:GetNWFloat("HT_BlackoutUntil", 0) > CurTime() then return false end
+end)
+
+hook.Add("PlayerDisconnected", "HT_Traps", function(ply) HT.RemoveTraps(ply) end)
+
 -- Brings the hunter back from "Behind You"
 local function ReturnFromBehind(ply)
 	local ret = ply.HT_BehindReturn
@@ -476,6 +644,7 @@ function SendPing(pos, kind)
 		end
 	end
 end
+HT.SendPing = SendPing
 
 local function MakeNoise(ply, kind)
 	if not HT.IsVictim(ply) or HT.IsSilent(ply) then return end

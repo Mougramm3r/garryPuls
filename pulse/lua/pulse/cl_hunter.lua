@@ -61,6 +61,7 @@ net.Receive("HT_Data", function()
 	if not istable(data) then return end
 	HT.Roles = data.roles or HT.Roles
 	HT.Game = data.game or HT.Game
+	HT.SeriesInfo = data.series or HT.SeriesInfo
 	hook.Run("HT_DataUpdated")
 end)
 

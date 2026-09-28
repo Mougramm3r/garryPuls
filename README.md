@@ -24,7 +24,7 @@ Deine Freunde laden den Client-Teil beim Joinen automatisch herunter.
 | **Victim** | alle | Fähigkeiten der Opfer |
 | **Players** | Admin | Jäger setzen (zum Testen), „Next round“ für vorausgewählte Jäger, Zahnrad = Default-Einstellungen des Spielers |
 | **Server** | Admin | Werte aller Fähigkeiten (Reichweite, Dauer, Abklingzeit …) |
-| **Game** | Admin | Runde starten/stoppen, Überlebenszeit, Versteckphase, Jäger-Anzahl und -Auswahl, Rollenvergabe, **Role editor** |
+| **Game** | Admin | Runde oder **Serie** starten/stoppen, Überlebenszeit, Versteckphase, Jäger-Anzahl und -Auswahl, Rollenvergabe, **Final phase & music**, **Items**, **Test mode**, **Role editor** |
 
 Links in jedem Tab ist eine Abschnittsliste; ein Klick springt direkt zum Abschnitt.
 
@@ -70,6 +70,7 @@ Mitgelieferte Rollen:
 | Tracker | 1 Chaser Pulse, 2 Roar, 3 Scary Sounds, 4 Stalk | – | Noise Radar, Footprints |
 | Brute | 1 Roar, 2 Teleport, 3 Jump Scare, 4 Aim Assist | – | Heartbeat Sensor |
 | Seer | 1 Radar, 2 Chaser Pulse, 3 Jump Scare, 4 Scary Sounds | Stalk | Heartbeat Sensor |
+| Phantom | 1 Mimic, 2 Blackout, 3 Trap, 4 Door Slam | Mark | Night Vision, Heartbeat Sensor |
 
 Rollenvergabe (Game → Role assignment): **Fixed role**, **Player choice** (Auswahlfenster beim Start) oder **Random**.
 
@@ -89,6 +90,12 @@ Rollenvergabe (Game → Role assignment): **Fixed role**, **Player choice** (Aus
 | Stalk | Active | Ein paar Sekunden das nächste Opfer beobachten (Kamera hinter ihm), dein Körper bleibt eingefroren stehen |
 | Behind You | Active | Direkt hinter das nächste Opfer teleportieren, eingefroren, kein Angriff. Das Opfer hört Atmen und Herzrasen. Dreht es sich um: leises Geräusch, du verschwindest zurück. Geht es weg: nichts passiert, du kehrst zurück |
 | Jump Scare | Active | Alle Opfer im Radius sehen kurz dein Gesicht direkt vor sich |
+| Blackout | Active | Opfer im Radius sehen kurz fast nichts, ihre Taschenlampe geht aus und lässt sich nicht einschalten. Schaltbare Map-Lampen gehen zusätzlich aus (experimentell, hängt von der Map ab) |
+| Trap | Active | Falle auf den Boden legen (max. 3). Tritt ein Opfer hinein, hängt es fest, es klappert laut und du bekommst einen Ping |
+| Mark | Active | Ein sichtbares Opfer anvisieren: Es leuchtet 10 s lila durch Wände |
+| Mimic | Active | Du siehst aus wie ein zufälliges Opfer, bis du angreifst, getroffen wirst oder die Zeit abläuft. Namensanzeigen sind in Runden aus |
+| Door Slam | Active | Türen in der Nähe knallen zu und sind kurz verschlossen (funktioniert nur auf Maps mit normalen Türen) |
+| Night Vision | Toggle | Grüne Nachtsicht mit Licht, das nur du siehst |
 
 HUD des Jägers oben rechts: Slot 1–4 mit Status (READY, Abklingzeit, ACTIVE, ON/OFF) und Taste, darunter die Menü-Taste
 und eine Zeile für die zuletzt benutzte Fähigkeit (läuft … / Abklingzeit …).
@@ -108,6 +115,43 @@ Map neu starten. Sie erscheinen mit ★ in der Soundauswahl.
 | – | Heartbeat | Optional: Opfer hören ihr Herz, wenn ein Jäger nah ist |
 
 Alle Opfer-Fähigkeiten kann der Admin im Tab **Server** einzeln abschalten und einstellen.
+
+## Items (Opfer)
+
+Beim Rundenstart werden Items auf der Map verteilt (Anzahl und Sorten im Tab **Game → Items**). Nur Opfer können sie aufheben,
+indem sie darüberlaufen. Sie landen im normalen Waffen-Inventar: **Mausrad** zum Auswählen, **Linksklick** zum Benutzen.
+
+| Item | Wirkung |
+|---|---|
+| Calming Pills | Sanity +30 % |
+| Medkit | +50 Leben |
+| Glowstick | Werfen, leuchtet 60 s grün |
+| Camera Flash | Blendet einen Jäger vor dir (einmalig, breiterer Winkel als die Taschenlampe) |
+
+Am besten funktionieren Maps mit Navmesh. Sonst werden die Items rund um die Spawnpunkte verteilt.
+
+## Finalphase, Musik und Atmosphäre
+
+- **Finalphase**: Lebt nur noch ein Opfer, wird es kurz schneller, und der Jäger sowie das letzte Opfer hören Chase-Musik.
+- **Chase-Musik** läuft außerdem für alle in den letzten Sekunden der Runde (Standard 60 s, einstellbar, 0 = aus).
+- **Ambient**: leise Hintergrundgeräusche, die im Laufe der Runde lauter werden, dazu ab und zu ein Schreck-Geräusch.
+- Eigene Dateien: `addons/pulse/sound/pulse/music/`, `.../ambient/` und `.../stingers/`. Sonst wird Half-Life-2-Musik benutzt.
+
+## Rundenserie
+
+Im Tab **Game → Series**: **Everyone is hunter once** (so viele Runden, bis jeder einmal Jäger war) oder **Fixed number of rounds**.
+Jäger wird immer, wer bisher am seltensten Jäger war. Zwischen den Runden gibt es eine Pause mit Countdown.
+
+Punkte: Opfer überlebt +3, +1 pro volle Minute am Leben. Jäger +2 pro gefangenem Opfer, +3 bei Sieg.
+Nach jeder Runde zeigt das Ergebnisfenster den Zwischenstand, nach der letzten Runde den Gesamtsieger.
+
+## Testmodus
+
+Im Tab **Game → Test mode**:
+- Bots hinzufügen und wieder kicken, Bots laufen lassen (sie rennen, springen und ducken sich zufällig)
+- Testrunde starten: Du bist Jäger, 5 s Versteckphase
+- Alle Items vor die Füße legen
+- Eigene Sanity auf 0 (Halluzinationen) oder 100 setzen
 
 ## Sanity und Stamina (Opfer)
 

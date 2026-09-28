@@ -75,6 +75,25 @@ HT.CV = {
 	staminaEnabled     = CreateConVar("pulse_stamina", "1", SV_FLAGS, "Victims have stamina during rounds", 0, 1),
 	staminaSprint      = CreateConVar("pulse_stamina_sprint", "6", SV_FLAGS, "Stamina: seconds of sprint when full", 1, 60),
 	staminaRegen       = CreateConVar("pulse_stamina_regen", "8", SV_FLAGS, "Stamina: seconds to refill completely", 1, 60),
+
+	blackoutRadius     = CreateConVar("pulse_blackout_radius", "800", SV_FLAGS, "Blackout: radius in units", 100, 5000),
+	blackoutTime       = CreateConVar("pulse_blackout_time", "8", SV_FLAGS, "Blackout: duration in seconds", 1, 60),
+	blackoutCooldown   = CreateConVar("pulse_blackout_cooldown", "60", SV_FLAGS, "Blackout: cooldown in seconds", 0, 600),
+	blackoutMapLights  = CreateConVar("pulse_blackout_maplights", "1", SV_FLAGS, "Blackout: also switch off map lights that can be switched (experimental)", 0, 1),
+
+	trapMax            = CreateConVar("pulse_trap_max", "3", SV_FLAGS, "Trap: max traps per hunter", 1, 10),
+	trapTime           = CreateConVar("pulse_trap_time", "3", SV_FLAGS, "Trap: victims are held for seconds", 0.5, 15),
+	trapCooldown       = CreateConVar("pulse_trap_cooldown", "20", SV_FLAGS, "Trap: cooldown in seconds", 0, 600),
+
+	markTime           = CreateConVar("pulse_mark_time", "10", SV_FLAGS, "Mark: victim stays visible for seconds", 1, 60),
+	markCooldown       = CreateConVar("pulse_mark_cooldown", "45", SV_FLAGS, "Mark: cooldown in seconds", 0, 600),
+
+	mimicTime          = CreateConVar("pulse_mimic_time", "30", SV_FLAGS, "Mimic: max duration in seconds", 5, 300),
+	mimicCooldown      = CreateConVar("pulse_mimic_cooldown", "90", SV_FLAGS, "Mimic: cooldown in seconds", 0, 600),
+
+	doorRadius         = CreateConVar("pulse_door_radius", "500", SV_FLAGS, "Door slam: radius in units", 100, 3000),
+	doorLockTime       = CreateConVar("pulse_door_lock_time", "8", SV_FLAGS, "Door slam: doors stay locked for seconds", 1, 60),
+	doorCooldown       = CreateConVar("pulse_door_cooldown", "40", SV_FLAGS, "Door slam: cooldown in seconds", 0, 600),
 }
 
 local CV = HT.CV
@@ -97,6 +116,12 @@ HT.HunterAbilities = {
 	{ id = "stalk",    name = "Stalk",            kind = "active", desc = "Watch the nearest victim for a few seconds. Your body stays frozen where it is." },
 	{ id = "behind",   name = "Behind You",       kind = "active", desc = "Appear right behind the nearest victim. They hear breathing. If they turn around, you vanish." },
 	{ id = "jump",     name = "Jump Scare",       kind = "active", desc = "Every victim nearby sees your face right in front of theirs." },
+	{ id = "blackout", name = "Blackout",         kind = "active", desc = "Victims nearby lose their sight and flashlight for a few seconds." },
+	{ id = "trap",     name = "Trap",             kind = "active", desc = "Place a trap where you look. It holds a victim and rattles loudly." },
+	{ id = "mark",     name = "Mark",             kind = "active", desc = "Aim at a victim to keep them visible for a few seconds." },
+	{ id = "mimic",    name = "Mimic",            kind = "active", desc = "Look like one of the victims until you attack." },
+	{ id = "doorslam", name = "Door Slam",        kind = "active", desc = "Slam and lock doors nearby for a moment (depends on the map)." },
+	{ id = "nightvision", name = "Night Vision",  kind = "toggle", desc = "See in the dark." },
 }
 
 HT.VictimAbilities = {
@@ -181,6 +206,7 @@ HT.DefaultRoles = {
 	{ name = "Tracker", loadout = "chaser=1;roar=2;sounds=3;stalk=4;noise=p;tracks=p" },
 	{ name = "Brute",   loadout = "roar=1;teleport=2;jump=3;aim=4;heart=p" },
 	{ name = "Seer",    loadout = "radar=1;chaser=2;jump=3;sounds=4;stalk=m;heart=p" },
+	{ name = "Phantom", loadout = "mimic=1;blackout=2;trap=3;doorslam=4;mark=m;nightvision=p;heart=p" },
 }
 
 HT.GameDefaults = {
@@ -193,6 +219,36 @@ HT.GameDefaults = {
 	fixedRole    = "Stalker",
 	choiceTime   = 15,
 	hunterWeapon = "weapon_crowbar",
+
+	-- final phase and atmosphere
+	finalPhase   = true,         -- last victim standing gets a speed boost, chase music starts
+	finalBoost   = 5,            -- seconds of speed boost for the last victim
+	musicLast    = 60,           -- chase music for everyone in the last seconds (0 = off)
+	ambient      = true,         -- background sounds that get louder over the round
+	ambientVolume = 0.5,
+
+	-- items on the map
+	items        = true,
+	itemCount    = 8,
+	itemPills    = true,
+	itemMedkit   = true,
+	itemGlowstick = true,
+	itemCamera   = true,
+
+	-- round series
+	seriesMode   = "everyone",   -- everyone (each player hunter once) | fixed
+	seriesRounds = 5,
+	seriesDelay  = 15,           -- seconds between rounds
+
+	-- test mode
+	botsWalk     = false,
+}
+
+HT.Items = {
+	{ key = "itemPills",     class = "pulse_item_pills",     name = "Calming Pills" },
+	{ key = "itemMedkit",    class = "pulse_item_medkit",    name = "Medkit" },
+	{ key = "itemGlowstick", class = "pulse_item_glowstick", name = "Glowstick" },
+	{ key = "itemCamera",    class = "pulse_item_camera",    name = "Camera Flash" },
 }
 
 HT.HunterWeapons = {
@@ -328,8 +384,8 @@ hook.Add("SetupMove", "HT_Speed", function(ply, mv)
 		mv:SetMaxClientSpeed(math.min(mv:GetMaxClientSpeed(), walk))
 		mv:SetMaxSpeed(math.min(mv:GetMaxSpeed(), walk))
 	end
-	-- frozen while stalking or standing behind a victim
-	if HT.IsActive(ply, "stalk") or HT.IsActive(ply, "behind") then
+	-- frozen while stalking, standing behind a victim or caught in a trap
+	if HT.IsActive(ply, "stalk") or HT.IsActive(ply, "behind") or ply:GetNWFloat("HT_RootUntil", 0) > CurTime() then
 		mv:SetMaxClientSpeed(0)
 		mv:SetMaxSpeed(0)
 		mv:SetVelocity(vector_origin)

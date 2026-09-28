@@ -252,6 +252,12 @@ local function PickRole(name)
 	net.SendToServer()
 end
 
+local function RoundCmd(cmd)
+	net.Start("HT_RoundCmd")
+	net.WriteString(cmd)
+	net.SendToServer()
+end
+
 local function GameSet(key, value)
 	timer.Create("HT_GameSet_" .. key, 0.3, 1, function()
 		net.Start("HT_GameSet")
@@ -593,6 +599,20 @@ Tabs.server = function()
 			ServerSlider(p, "Jump scare: radius", CV.jumpRadius)
 			ServerSlider(p, "Jump scare: face shown (s)", CV.jumpTime, 1)
 			ServerSlider(p, "Jump scare: cooldown (s)", CV.jumpCooldown)
+			ServerSlider(p, "Blackout: radius", CV.blackoutRadius)
+			ServerSlider(p, "Blackout: duration (s)", CV.blackoutTime)
+			ServerSlider(p, "Blackout: cooldown (s)", CV.blackoutCooldown)
+			ServerCheck(p, "Blackout: also switch off map lights (experimental, depends on the map)", CV.blackoutMapLights)
+			ServerSlider(p, "Trap: max traps per hunter", CV.trapMax)
+			ServerSlider(p, "Trap: hold time (s)", CV.trapTime, 1)
+			ServerSlider(p, "Trap: cooldown (s)", CV.trapCooldown)
+			ServerSlider(p, "Mark: visible for (s)", CV.markTime)
+			ServerSlider(p, "Mark: cooldown (s)", CV.markCooldown)
+			ServerSlider(p, "Mimic: max duration (s)", CV.mimicTime)
+			ServerSlider(p, "Mimic: cooldown (s)", CV.mimicCooldown)
+			ServerSlider(p, "Door slam: radius (depends on the map)", CV.doorRadius)
+			ServerSlider(p, "Door slam: locked for (s)", CV.doorLockTime)
+			ServerSlider(p, "Door slam: cooldown (s)", CV.doorCooldown)
 			AddInfo(p, "Which abilities a hunter has is set per role in Game > Role editor.")
 		end },
 		{ "Victim abilities", function(p)
@@ -648,15 +668,17 @@ Tabs.game = function()
 
 	return { sections = {
 		{ "Round", function(p)
-			AddInfo(p, PHASE_TEXT[HT.Phase()] or "", C.text)
-			if HT.InRound() then
-				AddButton(p, "End round now", function()
-					net.Start("HT_RoundCmd") net.WriteString("stop") net.SendToServer()
+			local series = HT.SeriesInfo
+			local seriesOn = series and series.active
+			AddInfo(p, (PHASE_TEXT[HT.Phase()] or "") .. (seriesOn and string.format("  Series: round %d of %d.", series.round + 1, series.total) or ""), C.text)
+			if HT.InRound() or seriesOn then
+				AddButton(p, seriesOn and "Stop series" or "End round now", function()
+					RoundCmd("stop")
 					Refresh(0.5)
 				end)
 			else
 				AddButton(p, "Start round", function()
-					net.Start("HT_RoundCmd") net.WriteString("start") net.SendToServer()
+					RoundCmd("start")
 					menuFrame:Remove()
 				end)
 			end
@@ -680,6 +702,47 @@ Tabs.game = function()
 			AddCombo(p, "Fixed role", roleOpts, g.fixedRole, function(v) GameSet("fixedRole", v) end)
 			AddSlider(p, "Choice time (seconds)", 5, 60, 0, g.choiceTime, function(v) GameSet("choiceTime", math.Round(v)) end)
 			AddInfo(p, "Player choice: hunters get a window at round start. No pick in time = random role.")
+		end },
+		{ "Series", function(p)
+			AddCombo(p, "Length", { { "Everyone is hunter once", "everyone" }, { "Fixed number of rounds", "fixed" } }, g.seriesMode,
+				function(v) GameSet("seriesMode", v) end)
+			AddSlider(p, "Rounds (fixed)", 1, 20, 0, g.seriesRounds, function(v) GameSet("seriesRounds", math.Round(v)) end)
+			AddSlider(p, "Pause between rounds (s)", 5, 120, 0, g.seriesDelay, function(v) GameSet("seriesDelay", math.Round(v)) end)
+			AddInfo(p, "Points: victim survives +3, +1 per full minute alive. Hunter +2 per catch, +3 for a win. The player who was hunter least often becomes the next hunter.")
+			if not HT.InRound() and not (HT.SeriesInfo and HT.SeriesInfo.active) then
+				AddButton(p, "Start series", function()
+					RoundCmd("series")
+					menuFrame:Remove()
+				end)
+			end
+		end },
+		{ "Final phase & music", function(p)
+			AddCheck(p, "Final phase when only one victim is left", g.finalPhase, function(v) GameSet("finalPhase", v) end)
+			AddSlider(p, "Speed boost for the last victim (s)", 0, 30, 0, g.finalBoost, function(v) GameSet("finalBoost", math.Round(v)) end)
+			AddSlider(p, "Chase music in the last seconds (0 = off)", 0, 300, 0, g.musicLast, function(v) GameSet("musicLast", math.Round(v)) end)
+			AddCheck(p, "Ambient sounds (louder over the round)", g.ambient, function(v) GameSet("ambient", v) end)
+			AddSlider(p, "Ambient volume", 0, 1, 2, g.ambientVolume, function(v) GameSet("ambientVolume", v) end)
+			AddInfo(p, "Own music: put files into addons/pulse/sound/pulse/music/ (ambient: .../ambient/, short scares: .../stingers/). Otherwise Half-Life 2 music is used.")
+		end },
+		{ "Items", function(p)
+			AddCheck(p, "Items on the map", g.items, function(v) GameSet("items", v) end)
+			AddSlider(p, "Number of items per round", 0, 40, 0, g.itemCount, function(v) GameSet("itemCount", math.Round(v)) end)
+			for _, item in ipairs(HT.Items) do
+				AddCheck(p, item.name, g[item.key], function(v) GameSet(item.key, v) end)
+			end
+			AddInfo(p, "Items are spread over the map at round start. Only victims can pick them up (walk over them). Select them with the mouse wheel, left click uses them. Maps with a navmesh give the best spots.")
+		end },
+		{ "Test mode", function(p)
+			AddButton(p, "Add a bot", function() RoundCmd("addbot") Refresh(1) end)
+			AddButton(p, "Kick all bots", function() RoundCmd("kickbots") Refresh(1) end)
+			AddCheck(p, "Bots walk around (sprint, jump, crouch)", g.botsWalk, function(v) GameSet("botsWalk", v) end)
+			AddButton(p, "Start test round (you are the hunter, 5 s hiding)", function()
+				RoundCmd("testround")
+				menuFrame:Remove()
+			end)
+			AddButton(p, "Drop all items at my feet", function() RoundCmd("items") end)
+			AddButton(p, "Set my sanity to 0 (hallucinations)", function() RoundCmd("sanity0") end)
+			AddButton(p, "Set my sanity to 100", function() RoundCmd("sanity100") end)
 		end },
 		{ "Role editor", function(p)
 			local role = (editingRole ~= "__new") and (HT.FindRole(editingRole or "") or HT.Roles[1]) or nil
@@ -979,6 +1042,41 @@ net.Receive("HT_RoundEnd", function()
 	list:AddColumn("Result")
 	for _, r in ipairs(data.rows or {}) do
 		list:AddLine(r.name, r.role, r.survived, r.result)
+	end
+
+	-- series standings
+	local series = data.series
+	if series then
+		f:SetTall(math.min(ScrH() - 40, 640))
+		f:Center()
+		local info = f:Add("DLabel")
+		info:Dock(BOTTOM)
+		info:DockMargin(0, 6, 0, 0)
+		info:SetFont("HT_Sub")
+		info:SetTextColor(series.final and C.warn or C.muted)
+		local leader = series.standings and series.standings[1]
+		info:SetText(series.final
+			and ("SERIES OVER  ·  Winner: " .. (leader and (leader.name .. " with " .. leader.points .. " points") or "-"))
+			or string.format("Series: round %d of %d done  ·  next round in %d s", series.round, series.total, series.nextIn or 0))
+		info:SizeToContentsY(6)
+
+		local standings = f:Add("DListView")
+		standings:Dock(BOTTOM)
+		standings:SetTall(150)
+		standings:DockMargin(0, 8, 0, 0)
+		standings:AddColumn("#"):SetFixedWidth(30)
+		standings:AddColumn("Player")
+		standings:AddColumn("Points"):SetFixedWidth(60)
+		standings:AddColumn("Catches"):SetFixedWidth(60)
+		standings:AddColumn("Survived"):SetFixedWidth(60)
+		standings:AddColumn("Hunter"):SetFixedWidth(60)
+		for i, sc in ipairs(series.standings or {}) do
+			standings:AddLine(i, sc.name, sc.points, sc.catches, sc.survived, sc.hunted)
+		end
+		-- close the window automatically before the next round starts
+		if not series.final and series.nextIn then
+			timer.Simple(math.max(1, series.nextIn - 1), function() if IsValid(f) then f:Remove() end end)
+		end
 	end
 
 	surface.PlaySound(data.winner == "hunter" and "ambient/creatures/town_child_scream1.wav" or "ambient/levels/citadel/strange_talk1.wav")
