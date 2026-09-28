@@ -379,6 +379,18 @@ local function PassiveList(p, me)
 	if not any then AddInfo(p, "No passive abilities.") end
 end
 
+-- the Pill Pack character and its own keys
+local function CharacterInfo(p, me)
+	local pill = me:GetNWString("HT_PillName", "")
+	if pill == "" then
+		AddInfo(p, HT.PillsInstalled() and "No character. The admin can give roles a character from the Pill Pack in Game > Role editor."
+			or "Parakeet's Pill Pack is not installed, so hunters use the normal player model.")
+		return
+	end
+	AddInfo(p, "You are: " .. (HT.PillPrintName(pill) or pill), C.warn)
+	for _, a in ipairs(HT.PillActions(pill)) do AddInfo(p, "[" .. a[1] .. "]  " .. a[2], C.text) end
+end
+
 local Tabs = {}
 
 Tabs.keys = function()
@@ -413,6 +425,7 @@ Tabs.hunter = function(sub)
 			{ "Abilities", function(p) AbilityList(p, me) end },
 			{ "Menu abilities", function(p) MenuList(p, me) end },
 			{ "Passive", function(p) PassiveList(p, me) end },
+			{ "Character", function(p) CharacterInfo(p, me) end },
 		} }
 	end
 
@@ -426,6 +439,7 @@ Tabs.hunter = function(sub)
 				for _, r in ipairs(HT.Roles) do list[#list + 1] = r end
 				for _, r in ipairs(list) do
 					local slots, passive, menu = LoadoutSummary(r.loadout)
+					local character = HT.PillPrintName(r.pill)
 					local row, lbl = Row(p, r.name, 30)
 					lbl:SetFont("HT_Tab")
 					local b = row:Add("DButton")
@@ -440,6 +454,7 @@ Tabs.hunter = function(sub)
 					AddInfo(p, slots)
 					if menu then AddInfo(p, "Menu: " .. menu, C.cold) end
 					AddInfo(p, "Passive: " .. passive, C.good)
+					if character then AddInfo(p, "Character: " .. character, C.warn) end
 				end
 			end },
 			{ "About roles", function(p)
@@ -467,6 +482,7 @@ Tabs.hunter = function(sub)
 			if HT.IsHunter(me) then MenuList(p, me) else AddInfo(p, "Become a hunter to use abilities.") end
 		end },
 		{ "Passive", function(p) PassiveList(p, me) end },
+		{ "Character", function(p) CharacterInfo(p, me) end },
 	} }
 end
 
@@ -750,6 +766,7 @@ Tabs.game = function()
 				old = role and role.name or "",
 				name = role and role.name or "New role",
 				state = table.Copy(HT.ParseLoadout(role and role.loadout or "").state),
+				pill = role and role.pill or "",
 			}
 
 			local opts = {}
@@ -765,6 +782,15 @@ Tabs.game = function()
 			te:Dock(FILL)
 			te:SetValue(edit.name)
 			te.OnChange = function(s) edit.name = s:GetValue() end
+
+			-- character from Parakeet's Pill Pack (only shown when it is installed)
+			if HT.PillsInstalled() then
+				local pills = { { "None (normal player model)", "" } }
+				for _, pl in ipairs(HT.GetPillList()) do pills[#pills + 1] = { pl.printName, pl.name } end
+				local cb = AddCombo(p, "Character (Pill Pack)", pills, edit.pill, function(v) edit.pill = v end)
+				if edit.pill ~= "" and not HT.PillPrintName(edit.pill) then cb:SetValue("Missing: " .. edit.pill) end
+				AddInfo(p, "The hunter becomes this character for the whole round. The character brings its own attacks, so the hunter weapon is left out.")
+			end
 
 			LoadoutEditor(p, edit.state, function() end)
 
@@ -784,7 +810,7 @@ Tabs.game = function()
 			Btn("Save role", function()
 				editingRole = string.Trim(edit.name)
 				net.Start("HT_RoleSave")
-				net.WriteString(util.TableToJSON({ old = edit.old, name = edit.name, loadout = HT.SerializeLoadout(edit.state) }))
+				net.WriteString(util.TableToJSON({ old = edit.old, name = edit.name, loadout = HT.SerializeLoadout(edit.state), pill = edit.pill }))
 				net.SendToServer()
 			end)
 			Btn("Duplicate", function()
@@ -792,7 +818,7 @@ Tabs.game = function()
 				edit.name = edit.name .. " copy"
 				editingRole = edit.name
 				net.Start("HT_RoleSave")
-				net.WriteString(util.TableToJSON({ old = "", name = edit.name, loadout = HT.SerializeLoadout(edit.state) }))
+				net.WriteString(util.TableToJSON({ old = "", name = edit.name, loadout = HT.SerializeLoadout(edit.state), pill = edit.pill }))
 				net.SendToServer()
 			end)
 			if role then
@@ -992,6 +1018,8 @@ net.Receive("HT_ChooseRole", function()
 		AddInfo(scroll, slots)
 		if menu then AddInfo(scroll, "Menu: " .. menu, C.cold) end
 		AddInfo(scroll, "Passive: " .. passive, C.good)
+		local character = HT.PillPrintName(r.pill)
+		if character then AddInfo(scroll, "Character: " .. character, C.warn) end
 		AddButton(scroll, "Play as " .. r.name, function() pick(r.name) end)
 	end
 	AddButton(scroll, "Random role", function() pick(HT.Roles[math.random(#HT.Roles)].name) end)

@@ -116,6 +116,19 @@ Map neu starten. Sie erscheinen mit ★ in der Soundauswahl.
 
 Alle Opfer-Fähigkeiten kann der Admin im Tab **Server** einzeln abschalten und einstellen.
 
+## Charaktere aus Parakeet's Pill Pack (optional)
+
+Ist **Parakeet's Pill Pack** mit Charakter-Packs (z. B. FNAF-Charaktere) installiert, bekommt der **Role editor** ein Feld
+**„Character (Pill Pack)“** mit allen installierten Charakteren.
+
+- In der Runde wird der Jäger beim Rollenstart automatisch zu diesem Charakter (bis zum Tod bzw. Rundenende) und bekommt keine Jäger-Waffe,
+  weil der Charakter eigene Angriffe hat. Die PULSE-Fähigkeiten liegen weiter auf Numpad 1–4.
+- Das HUD zeigt unter den Slots den Charakter und seine Tasten (LMB, RMB, R).
+- Außerhalb von Runden wird ein Jäger beim Auswählen einer Rolle zum Ausprobieren verwandelt.
+- Während einer Runde sind Pills aus dem Q-Menü gesperrt.
+- Jump Scare und Halluzinationen zeigen das Charakter-Model. Mimic funktioniert als Charakter nicht.
+- Ohne Pill Pack funktioniert PULSE ganz normal, das Feld ist dann ausgeblendet.
+
 ## Items (Opfer)
 
 Beim Rundenstart werden Items auf der Map verteilt (Anzahl und Sorten im Tab **Game → Items**). Nur Opfer können sie aufheben,

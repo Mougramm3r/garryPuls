@@ -29,6 +29,13 @@ local function CleanRoleName(name)
 	return string.sub(name, 1, 24)
 end
 
+-- Pill Pack character name (letters, digits, _ -), empty = none
+local function CleanPill(name)
+	name = tostring(name or "")
+	if #name > 64 or string.find(name, "[^%w_%-]") then return "" end
+	return name
+end
+
 local function ValidateGame(g)
 	local d = HT.GameDefaults
 	local out = {}
@@ -71,7 +78,7 @@ local function Load()
 		for _, r in ipairs(roles) do
 			local name = CleanRoleName(r.name)
 			if name ~= "" and not HT.FindRole(name) then
-				HT.Roles[#HT.Roles + 1] = { name = name, loadout = HT.SerializeLoadout(HT.ParseLoadout(r.loadout).state) }
+				HT.Roles[#HT.Roles + 1] = { name = name, loadout = HT.SerializeLoadout(HT.ParseLoadout(r.loadout).state), pill = CleanPill(r.pill) }
 			end
 		end
 	end
@@ -154,9 +161,11 @@ net.Receive("HT_RoleSave", function(_, ply)
 	end
 
 	local loadout = HT.SerializeLoadout(HT.ParseLoadout(data.loadout).state)
+	local pill = CleanPill(data.pill)
 	if role then
 		role.name = name
 		role.loadout = loadout
+		role.pill = pill
 		if HT.Game.fixedRole == oldName then HT.Game.fixedRole = name end
 		for _, p in ipairs(player.GetAll()) do
 			if p.HT_SelectedRole == oldName then p.HT_SelectedRole = name end
@@ -164,7 +173,7 @@ net.Receive("HT_RoleSave", function(_, ply)
 		end
 	else
 		if #HT.Roles >= 20 then ply:ChatPrint("[PULSE] You can have at most 20 roles.") return end
-		HT.Roles[#HT.Roles + 1] = { name = name, loadout = loadout }
+		HT.Roles[#HT.Roles + 1] = { name = name, loadout = loadout, pill = pill }
 	end
 
 	Save()
@@ -229,6 +238,12 @@ local function AssignRole(ply, name)
 	ply.HT_RoundRole = role.name
 	HT.RefreshLoadout(ply)
 	ply:ChatPrint("[PULSE] Your role: " .. role.name)
+
+	-- the role's character from the Pill Pack; it brings its own attacks, so no hunter weapon
+	if role.pill and role.pill ~= "" and HT.ApplyPill(ply, role.pill, true) then
+		ply:StripWeapons()
+		ply:ChatPrint("[PULSE] Your character: " .. (HT.PillPrintName(role.pill) or role.pill))
+	end
 end
 
 local function AssignMissingRoles()
@@ -639,6 +654,12 @@ net.Receive("HT_PickRole", function(_, ply)
 	else
 		ply.HT_SelectedRole = HT.FindRole(name) and name or nil
 		HT.RefreshLoadout(ply)
+		-- outside rounds hunters can try the role's character
+		if HT.IsHunter(ply) then
+			HT.RemovePill(ply)
+			local role = ply.HT_SelectedRole and HT.FindRole(ply.HT_SelectedRole)
+			if role and role.pill and role.pill ~= "" then HT.ApplyPill(ply, role.pill, false) end
+		end
 	end
 end)
 
@@ -689,6 +710,7 @@ timer.Create("HT_RoundTick", 0.5, 0, CheckRound)
 
 hook.Add("PlayerDeath", "HT_RoundDeath", function(victim, _, attacker)
 	if not round then return end
+	attacker = HT.OwnerPlayer(attacker)
 	local p = round.players[victim]
 	if p and not p.died then
 		p.died = CurTime()
@@ -739,7 +761,7 @@ end)
 -- Victims can't hurt hunters directly, hunters can't hurt each other
 hook.Add("EntityTakeDamage", "HT_RoundDamage", function(target, dmg)
 	if not round or not IsValid(target) or not target:IsPlayer() then return end
-	local attacker = dmg:GetAttacker()
+	local attacker = HT.OwnerPlayer(dmg:GetAttacker())
 	if HT.Phase() == "prep" then return true end
 	if HT.IsHunter(target) and IsValid(attacker) and attacker:IsPlayer() and attacker ~= target then return true end
 	if IsValid(attacker) and attacker:IsPlayer() and not HT.IsHunter(attacker) and attacker ~= target then return true end

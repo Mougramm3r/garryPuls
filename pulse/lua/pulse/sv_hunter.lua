@@ -94,6 +94,13 @@ function HT.SetHunter(ply, state, quiet)
 	ply:SetNWBool("HT_Hunter", state)
 	HT.ResetAbilityState(ply)
 	HT.RefreshLoadout(ply)
+	-- character from the Pill Pack: off when no longer hunter, on for a selected role outside rounds
+	if not state then
+		HT.RemovePill(ply)
+	elseif not HT.InRound() and ply.HT_SelectedRole then
+		local role = HT.FindRole(ply.HT_SelectedRole)
+		if role and role.pill and role.pill ~= "" then HT.ApplyPill(ply, role.pill, false) end
+	end
 	if not quiet then
 		PrintMessage(HUD_PRINTTALK, "[PULSE] " .. ply:Nick() .. (state and " is now a hunter." or " is no longer a hunter."))
 	end
@@ -366,7 +373,7 @@ local Actions = {
 		if #victims == 0 then ply:ChatPrint("[PULSE] No victim close enough.") return end
 
 		net.Start("HT_Jumpscare")
-		net.WriteString(ply:GetModel())
+		net.WriteString(HT.VisualModel(ply))
 		net.WriteFloat(CV.jumpTime:GetFloat())
 		net.Send(victims)
 		ply:ChatPrint("[PULSE] Scared " .. #victims .. (#victims == 1 and " victim." or " victims."))
@@ -479,6 +486,7 @@ Actions.mark = function(ply, now)
 end
 
 Actions.mimic = function(ply)
+	if ply.HT_Pill then ply:ChatPrint("[PULSE] Mimic doesn't work while you are a character from the Pill Pack.") return end
 	local victims = {}
 	for _, target in ipairs(player.GetAll()) do
 		if HT.IsTarget(ply, target) then victims[#victims + 1] = target end
@@ -583,7 +591,7 @@ end)
 
 -- Frozen hunters (stalk, behind you) can't hurt anyone
 hook.Add("EntityTakeDamage", "HT_FrozenHunter", function(_, dmg)
-	local attacker = dmg:GetAttacker()
+	local attacker = HT.OwnerPlayer(dmg:GetAttacker())
 	if HT.IsHunter(attacker) and (HT.IsActive(attacker, "stalk") or HT.IsActive(attacker, "behind")) then return true end
 end)
 
@@ -853,7 +861,7 @@ hook.Add("PostEntityTakeDamage", "HT_Adrenaline", function(ent, dmg, took)
 	ChangeSanity(ent, -dmg:GetDamage() * CV.sanityDamage:GetFloat())
 
 	if not CV.allowAdrenaline:GetBool() then return end
-	if not HT.IsHunter(dmg:GetAttacker()) then return end
+	if not HT.IsHunter(HT.OwnerPlayer(dmg:GetAttacker())) then return end
 
 	local now = CurTime()
 	if ent:GetNWFloat("HT_AdrenalineReady", 0) > now then return end

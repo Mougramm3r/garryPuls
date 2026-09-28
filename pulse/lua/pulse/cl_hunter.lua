@@ -686,6 +686,20 @@ local function DrawHunterHUD(me)
 	if #passive > 0 then
 		draw.SimpleTextOutlined("Passive: " .. table.concat(passive, ", "), "HT_Row", x + w, y + 20, C.good,
 			TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP, 1, color_black)
+		y = y + 18
+	end
+
+	-- character from the Pill Pack and its own keys
+	local pill = me:GetNWString("HT_PillName", "")
+	if pill ~= "" then
+		y = y + 44
+		draw.SimpleTextOutlined("Character: " .. (HT.PillPrintName(pill) or pill), "HT_Row", x + w, y, C.warn,
+			TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP, 1, color_black)
+		y = y + 22
+		for _, a in ipairs(HT.PillActions(pill)) do
+			DrawRow(x, y, w, "", a[2], C.text, nil, nil, a[1])
+			y = y + ROW_H + ROW_GAP
+		end
 	end
 end
 
@@ -929,7 +943,7 @@ hook.Add("Think", "HT_Hallucinations", function()
 		nextPhantom = now + math.random(20, 40)
 		local model
 		for _, ply in ipairs(player.GetAll()) do
-			if HT.IsHunter(ply) then model = ply:GetModel() break end
+			if HT.IsHunter(ply) then model = HT.VisualModel(ply) break end
 		end
 		local ang = Angle(0, me:EyeAngles().y + math.random(-35, 35), 0)
 		local tr = util.TraceLine({ start = me:EyePos(), endpos = me:EyePos() + ang:Forward() * math.random(400, 800), filter = me, mask = MASK_SOLID_BRUSHONLY })
