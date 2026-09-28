@@ -10,12 +10,13 @@ surface.CreateFont("HT_Tab", { font = "Roboto", size = 18, weight = 800 })
 surface.CreateFont("HT_Header", { font = "Roboto", size = 20, weight = 800 })
 surface.CreateFont("HT_Side", { font = "Roboto", size = 15, weight = 500 })
 
-local menuFrame, playerFrame, soundFrame, roleFrame, endFrame
+local menuFrame, playerFrame, soundFrame, roleFrame, endFrame, pillFrame
 local state = { tab = "keys", sub = "abilities" }
 local editingRole -- role name being edited in the Game tab ("__new" for a new one)
 
 function HT.AnyWindowOpen()
 	return IsValid(menuFrame) or IsValid(playerFrame) or IsValid(soundFrame) or IsValid(roleFrame) or IsValid(endFrame)
+		or IsValid(pillFrame)
 end
 
 ------------------------------------------------------------------------
@@ -317,6 +318,13 @@ local function DefaultSections(target)
 			AddSlider(p, "Duration (seconds)", 1, CV.chaserMaxTime:GetFloat(), 1, Get(target, "HT_ChaserCfgTime"), function(v) HT.SendSetting(target, "HT_ChaserCfgTime", v) end)
 		end },
 	}
+	if isMe and HT.PillsInstalled() then
+		sections[#sections + 1] = { "Character", function(p)
+			local cur = Get(target, "HT_DefPill")
+			AddInfo(p, "Character for the Default role: " .. (HT.PillPrintName(cur) or "none (normal player model)"), C.warn)
+			AddButton(p, "Choose character", function() HT.OpenPillPicker() end)
+		end }
+	end
 	if isMe then
 		sections[#sections + 1] = { "Scary Sounds", function(p)
 			local opts = {}
@@ -1022,8 +1030,129 @@ net.Receive("HT_ChooseRole", function()
 		if character then AddInfo(scroll, "Character: " .. character, C.warn) end
 		AddButton(scroll, "Play as " .. r.name, function() pick(r.name) end)
 	end
+	-- Default: your own setup, then pick a character with pictures
+	local slots, passive, menu = LoadoutSummary(Get(LP(), "HT_DefLoadout"))
+	AddHeader(scroll, "Default (your own setup)")
+	AddInfo(scroll, slots)
+	if menu then AddInfo(scroll, "Menu: " .. menu, C.cold) end
+	AddInfo(scroll, "Passive: " .. passive, C.good)
+	AddButton(scroll, HT.PillsInstalled() and "Play as Default and choose a character" or "Play as Default", function()
+		pick("")
+		if HT.PillsInstalled() then
+			local prepEnd = HT.Phase() == "prep" and HT.PhaseEnd() or (deadline + 20)
+			HT.OpenPillPicker(prepEnd)
+		end
+	end)
+
 	AddButton(scroll, "Random role", function() pick(HT.Roles[math.random(#HT.Roles)].name) end)
 end)
+
+------------------------------------------------------------------------
+-- Character picker (Pill Pack), with pictures like in the Q menu
+------------------------------------------------------------------------
+
+local TILE = 112
+
+function HT.OpenPillPicker(deadline)
+	if IsValid(pillFrame) then pillFrame:Remove() end
+	if IsValid(menuFrame) then menuFrame:Remove() end
+	local list = HT.GetPillList()
+
+	local f = NewFrame("Choose your character", 720, 560)
+	pillFrame = f
+	f.Think = function(self)
+		if not deadline then return end
+		local left = deadline - CurTime()
+		self:SetTitle("Choose your character   " .. HT.FormatTime(left))
+		if left <= 0 then self:Remove() end
+	end
+
+	local search = f:Add("DTextEntry")
+	search:Dock(TOP)
+	search:DockMargin(8, 6, 8, 6)
+	search:SetTall(26)
+	search:SetPlaceholderText("Search...")
+
+	local scroll = f:Add("DScrollPanel")
+	scroll:Dock(FILL)
+	local grid = scroll:Add("DIconLayout")
+	grid:Dock(FILL)
+	grid:DockMargin(8, 4, 8, 8)
+	grid:SetSpaceX(6)
+	grid:SetSpaceY(6)
+
+	local current = Get(LP(), "HT_DefPill")
+
+	local function choose(name)
+		net.Start("HT_PickPill")
+		net.WriteString(name)
+		net.SendToServer()
+		surface.PlaySound("buttons/button14.wav")
+		f:Remove()
+	end
+
+	-- one picture tile: pack icon if there is one, otherwise the model
+	local function Tile(name, label)
+		local tile = grid:Add("DButton")
+		tile:SetSize(TILE, TILE + 22)
+		tile:SetText("")
+		tile:SetTooltip(label)
+		tile.label = string.lower(label)
+		tile.Paint = function(self, w, h)
+			local on = name == current
+			draw.RoundedBox(4, 0, 0, w, h, self:IsHovered() and Color(59, 29, 27) or Color(30, 24, 25))
+			if on or self:IsHovered() then
+				surface.SetDrawColor(on and C.accent or C.line)
+				surface.DrawOutlinedRect(0, 0, w, h, 2)
+			end
+			draw.SimpleText(#label > 16 and (string.sub(label, 1, 15) .. "…") or label, "HT_Side", w / 2, h - 11,
+				on and C.text or C.muted, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		end
+		tile.DoClick = function() choose(name) end
+
+		local icon = name ~= "" and HT.PillIcon(name)
+		if icon then
+			local img = tile:Add("DImage")
+			img:SetPos(8, 6)
+			img:SetSize(TILE - 16, TILE - 16)
+			img:SetImage(icon)
+			img:SetMouseInputEnabled(false)
+		elseif name ~= "" and HT.PillModel(name) then
+			local mdl = tile:Add("SpawnIcon")
+			mdl:SetPos(8, 6)
+			mdl:SetSize(TILE - 16, TILE - 16)
+			mdl:SetModel(HT.PillModel(name))
+			mdl:SetMouseInputEnabled(false)
+		else
+			local none = tile:Add("DLabel")
+			none:SetPos(0, 6)
+			none:SetSize(TILE, TILE - 16)
+			none:SetContentAlignment(5)
+			none:SetFont("HT_Tab")
+			none:SetText(name == "" and "NONE" or "?")
+			none:SetTextColor(C.faint)
+			none:SetMouseInputEnabled(false)
+		end
+		return tile
+	end
+
+	Tile("", "No character")
+	for _, pl in ipairs(list) do Tile(pl.name, pl.printName) end
+	if #list == 0 then
+		local l = scroll:Add("DLabel")
+		l:Dock(TOP)
+		l:SetText("No characters found. Is Parakeet's Pill Pack with character packs installed?")
+		l:SetTextColor(C.muted)
+	end
+
+	search.OnChange = function(self)
+		local q = string.lower(self:GetValue())
+		for _, child in ipairs(grid:GetChildren()) do
+			child:SetVisible(q == "" or (child.label and string.find(child.label, q, 1, true)) ~= nil)
+		end
+		grid:Layout()
+	end
+end
 
 ------------------------------------------------------------------------
 -- Round results

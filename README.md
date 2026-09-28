@@ -127,6 +127,10 @@ Ist **Parakeet's Pill Pack** mit Charakter-Packs (z. B. FNAF-Charaktere) install
 - Außerhalb von Runden wird ein Jäger beim Auswählen einer Rolle zum Ausprobieren verwandelt.
 - Während einer Runde sind Pills aus dem Q-Menü gesperrt.
 - Jump Scare und Halluzinationen zeigen das Charakter-Model. Mimic funktioniert als Charakter nicht.
+- **Default mit eigenem Charakter:** Im Rollenfenster beim Rundenstart (Rollenvergabe „Player choice“) gibt es auch **Default**
+  (dein eigenes Setup aus Hunter → Default). Wählst du es, öffnet sich ein **Charakter-Auswahlfenster mit Bildern wie im Q-Menü**
+  (mit Suche). Die Wahl wird gespeichert; wer nicht rechtzeitig wählt, behält seinen gespeicherten Charakter.
+  Vorab festlegen geht auch im Tab **Hunter → Default → Character**.
 - Ohne Pill Pack funktioniert PULSE ganz normal, das Feld ist dann ausgeblendet.
 
 ## Items (Opfer)

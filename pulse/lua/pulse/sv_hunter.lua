@@ -23,6 +23,11 @@ function HT.RefreshLoadout(ply)
 	if HT.InRound() then
 		if ply.HT_RoundRole then role = HT.FindRole(ply.HT_RoundRole) end
 		name = "Choosing..."
+		if ply.HT_RoundDefault then
+			ply:SetNWString("HT_Loadout", HT.Get(ply, "HT_DefLoadout"))
+			ply:SetNWString("HT_RoleName", "Default")
+			return
+		end
 	elseif ply.HT_SelectedRole then
 		role = HT.FindRole(ply.HT_SelectedRole)
 		if not role then ply.HT_SelectedRole = nil end
@@ -97,9 +102,10 @@ function HT.SetHunter(ply, state, quiet)
 	-- character from the Pill Pack: off when no longer hunter, on for a selected role outside rounds
 	if not state then
 		HT.RemovePill(ply)
-	elseif not HT.InRound() and ply.HT_SelectedRole then
-		local role = HT.FindRole(ply.HT_SelectedRole)
-		if role and role.pill and role.pill ~= "" then HT.ApplyPill(ply, role.pill, false) end
+	elseif not HT.InRound() then
+		local role = ply.HT_SelectedRole and HT.FindRole(ply.HT_SelectedRole)
+		local pill = role and role.pill or (not role and HT.Get(ply, "HT_DefPill")) or ""
+		if pill ~= "" then HT.ApplyPill(ply, pill, false) end
 	end
 	if not quiet then
 		PrintMessage(HUD_PRINTTALK, "[PULSE] " .. ply:Nick() .. (state and " is now a hunter." or " is no longer a hunter."))
@@ -151,8 +157,10 @@ net.Receive("HT_Set", function(_, ply)
 
 	if s.type == "bool" then
 		target:SetNWBool(key, raw == "1")
+	elseif key == "HT_DefPill" then
+		target:SetNWString(key, HT.ValidPill(raw))
 	elseif s.type == "string" then
-		-- only loadouts are strings; store them cleaned up
+		-- loadouts: store them cleaned up
 		target:SetNWString(key, HT.SerializeLoadout(HT.ParseLoadout(raw).state))
 		HT.RefreshLoadout(target)
 	else

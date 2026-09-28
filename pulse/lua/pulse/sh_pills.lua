@@ -38,6 +38,29 @@ function HT.GetPillList()
 	return list
 end
 
+-- A pill name that exists and is a wearable character, or "" otherwise
+function HT.ValidPill(name)
+	name = tostring(name or "")
+	if name == "" or #name > 64 or string.find(name, "[^%w_%-]") or not HT.PillsInstalled() then return "" end
+	local t = pk_pills.getPillTable(name)
+	return (t and t.type == "ply") and name or ""
+end
+
+-- Picture for the character picker: the pack's icon like in the Q menu, otherwise nil (show the model)
+function HT.PillIcon(name)
+	if not HT.PillsInstalled() then return end
+	local t = pk_pills.getPillTable(name)
+	for _, path in ipairs({ t and t.icon, "pills/" .. name .. ".png", "entities/" .. name .. ".png" }) do
+		if isstring(path) and path ~= "" and file.Exists("materials/" .. path, "GAME") then return path end
+	end
+end
+
+function HT.PillModel(name)
+	if not HT.PillsInstalled() then return end
+	local t = pk_pills.getPillTable(name)
+	return t and isstring(t.model) and t.model or nil
+end
+
 function HT.PillPrintName(name)
 	if not name or name == "" or not HT.PillsInstalled() then return nil end
 	local t = pk_pills.getPillTable(name)

@@ -283,6 +283,7 @@ HT.Settings = {
 	{ key = "HT_ChaserCfgRadius", type = "float",  default = 1500, min = 100, max = Limit(CV.chaserMaxRadius) },
 	{ key = "HT_ChaserCfgTime",   type = "float",  default = 5,    min = 1,   max = Limit(CV.chaserMaxTime) },
 	{ key = "HT_DefLoadout",      type = "string", default = HT.DEFAULT_LOADOUT },
+	{ key = "HT_DefPill",         type = "string", default = "" }, -- character for the Default role
 }
 
 HT.SettingByKey = {}
