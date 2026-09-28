@@ -381,6 +381,20 @@ function HT.FormatTime(sec)
 end
 
 -- Speed: roar slows, adrenaline speeds up (in SetupMove so it is predicted)
+-- Frozen: hunters in the hiding phase, while stalking / behind a victim, or caught in a trap
+function HT.IsFrozen(ply)
+	if HT.IsHunter(ply) and HT.Phase() == "prep" then return true end
+	return HT.IsActive(ply, "stalk") or HT.IsActive(ply, "behind") or ply:GetNWFloat("HT_RootUntil", 0) > CurTime()
+end
+
+-- Empty the player's input: works for normal players and for Pill Pack characters,
+-- which move with their own system and ignore Player:Freeze()
+hook.Add("StartCommand", "HT_Frozen", function(ply, cmd)
+	if not HT.IsFrozen(ply) then return end
+	cmd:ClearMovement()
+	cmd:ClearButtons()
+end)
+
 hook.Add("SetupMove", "HT_Speed", function(ply, mv)
 	-- out of stamina: walking speed only
 	if ply:GetNWBool("HT_Exhausted", false) then
@@ -388,8 +402,7 @@ hook.Add("SetupMove", "HT_Speed", function(ply, mv)
 		mv:SetMaxClientSpeed(math.min(mv:GetMaxClientSpeed(), walk))
 		mv:SetMaxSpeed(math.min(mv:GetMaxSpeed(), walk))
 	end
-	-- frozen while stalking, standing behind a victim or caught in a trap
-	if HT.IsActive(ply, "stalk") or HT.IsActive(ply, "behind") or ply:GetNWFloat("HT_RootUntil", 0) > CurTime() then
+	if HT.IsFrozen(ply) then
 		mv:SetMaxClientSpeed(0)
 		mv:SetMaxSpeed(0)
 		mv:SetVelocity(vector_origin)

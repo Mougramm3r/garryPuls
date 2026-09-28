@@ -658,7 +658,7 @@ end)
 
 -- Test mode: bots wander around, sometimes sprint or jump
 hook.Add("StartCommand", "HT_TestBots", function(ply, cmd)
-	if not ply:IsBot() or not HT.Game.botsWalk or not ply:Alive() then return end
+	if not ply:IsBot() or not HT.Game.botsWalk or not ply:Alive() or HT.IsFrozen(ply) then return end
 	local now = CurTime()
 	if now > (ply.HT_BotNext or 0) or ply:GetVelocity():Length2DSqr() < 20 ^ 2 and now > (ply.HT_BotStuck or 0) then
 		ply.HT_BotNext = now + math.Rand(2, 5)
