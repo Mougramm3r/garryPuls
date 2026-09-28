@@ -7,15 +7,24 @@ function HT.PillsInstalled()
 	return pk_pills ~= nil and pk_pills.getPillTable ~= nil
 end
 
--- The Pill Pack keeps its list of pills private. getRandomForm() picks a random registered
--- pill, so calling it often enough finds all of them (getFormCount() tells us when we're done).
-local pillList
-function HT.GetPillList()
-	if pillList then return pillList end
-	if not HT.PillsInstalled() or not pk_pills.getRandomForm or not pk_pills.getFormCount then return {} end
+-- Groups the Pill Pack itself brings (not the character packs you add)
+HT.BASE_PILL_PACKS = { ["Half-Life 2"] = true, ["Fun"] = true, ["Jake"] = true }
 
-	local total = pk_pills.getFormCount()
-	local found, count = {}, 0
+-- The Pill Pack keeps its pack list private, but packStart() holds it as an upvalue.
+local function PackTable()
+	if not HT.PillsInstalled() or not pk_pills.packStart or not debug or not debug.getupvalue then return end
+	for i = 1, 30 do
+		local name, value = debug.getupvalue(pk_pills.packStart, i)
+		if not name then return end
+		if name == "packs" and istable(value) then return value end
+	end
+end
+
+-- Fallback without pack info: getRandomForm() often enough finds every pill
+local function SampleAllPills()
+	local found = {}
+	if not pk_pills.getRandomForm or not pk_pills.getFormCount then return found end
+	local total, count = pk_pills.getFormCount(), 0
 	for _ = 1, math.max(2000, total * 40) do
 		local name = pk_pills.getRandomForm()
 		if name and not found[name] then
@@ -24,26 +33,78 @@ function HT.GetPillList()
 			if count >= total then break end
 		end
 	end
+	return found
+end
 
-	local list = {}
-	for name in pairs(found) do
+-- All wearable characters ("ply" pills) with the pack they belong to
+local allPills
+local function AllPills()
+	if allPills then return allPills end
+	if not HT.PillsInstalled() then return {} end
+
+	local list, seen = {}, {}
+	local function add(name, pack)
+		if seen[name] then return end
 		local t = pk_pills.getPillTable(name)
-		-- only pills a player wears as a character ("ply"), not vehicles/props ("phys")
 		if t and t.type == "ply" then
-			list[#list + 1] = { name = name, printName = t.printName or name }
+			seen[name] = true
+			list[#list + 1] = { name = name, printName = t.printName or name, pack = pack }
 		end
 	end
+
+	local packs = PackTable()
+	if packs then
+		for _, pack in ipairs(packs) do
+			for _, item in ipairs(pack.items or {}) do
+				if item.type == "pill" and item.name then add(item.name, tostring(pack.name or "?")) end
+			end
+		end
+	else
+		for name in pairs(SampleAllPills()) do add(name, "?") end
+	end
+
 	table.sort(list, function(a, b) return string.lower(a.printName) < string.lower(b.printName) end)
-	if #list > 0 then pillList = list end -- try again later if the packs weren't loaded yet
+	if #list > 0 then allPills = list end -- try again later if the packs weren't loaded yet
 	return list
 end
 
--- A pill name that exists and is a wearable character, or "" otherwise
+-- Is a pack hidden? The admin decides in Game > Characters; base packs are hidden by default.
+function HT.PackHidden(pack)
+	local hidden = HT.Game.pillHidden
+	if istable(hidden) and hidden[pack] ~= nil then return hidden[pack] == true end
+	return HT.BASE_PILL_PACKS[pack] == true
+end
+
+-- Packs with their number of characters, for the admin filter
+function HT.GetPillPacks()
+	local packs, order = {}, {}
+	for _, pl in ipairs(AllPills()) do
+		if not packs[pl.pack] then
+			packs[pl.pack] = { name = pl.pack, count = 0 }
+			order[#order + 1] = packs[pl.pack]
+		end
+		packs[pl.pack].count = packs[pl.pack].count + 1
+	end
+	return order
+end
+
+-- Characters that can be picked (hidden packs left out)
+function HT.GetPillList()
+	local list = {}
+	for _, pl in ipairs(AllPills()) do
+		if not HT.PackHidden(pl.pack) then list[#list + 1] = pl end
+	end
+	return list
+end
+
+-- A pill name that exists, is a wearable character and not in a hidden pack, or "" otherwise
 function HT.ValidPill(name)
 	name = tostring(name or "")
 	if name == "" or #name > 64 or string.find(name, "[^%w_%-]") or not HT.PillsInstalled() then return "" end
-	local t = pk_pills.getPillTable(name)
-	return (t and t.type == "ply") and name or ""
+	for _, pl in ipairs(HT.GetPillList()) do
+		if pl.name == name then return name end
+	end
+	return ""
 end
 
 -- Picture for the character picker: the pack's icon like in the Q menu, otherwise nil (show the model)

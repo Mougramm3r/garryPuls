@@ -69,6 +69,16 @@ local function ValidateGame(g)
 	out.seriesRounds = math.Clamp(math.floor(tonumber(g.seriesRounds) or d.seriesRounds), 1, 50)
 	out.seriesDelay = math.Clamp(math.floor(tonumber(g.seriesDelay) or d.seriesDelay), 5, 120)
 	out.botsWalk = B(g.botsWalk, d.botsWalk)
+	out.pillHidden = {}
+	if istable(g.pillHidden) then
+		local n = 0
+		for pack, hidden in pairs(g.pillHidden) do
+			if isstring(pack) and #pack <= 64 and n < 100 then
+				out.pillHidden[pack] = hidden == true or hidden == 1
+				n = n + 1
+			end
+		end
+	end
 	return out
 end
 

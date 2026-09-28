@@ -131,6 +131,8 @@ Ist **Parakeet's Pill Pack** mit Charakter-Packs (z. B. FNAF-Charaktere) install
   (dein eigenes Setup aus Hunter → Default). Wählst du es, öffnet sich ein **Charakter-Auswahlfenster mit Bildern wie im Q-Menü**
   (mit Suche). Die Wahl wird gespeichert; wer nicht rechtzeitig wählt, behält seinen gespeicherten Charakter.
   Vorab festlegen geht auch im Tab **Hunter → Default → Character**.
+- **Filter:** Die eigenen Charaktere des Pill Packs (Gruppen „Half-Life 2“, „Fun“, „Jake“) sind standardmäßig ausgeblendet.
+  Im Tab **Game → Characters** kann der Admin jede Gruppe einzeln ein- oder ausblenden.
 - Ohne Pill Pack funktioniert PULSE ganz normal, das Feld ist dann ausgeblendet.
 
 ## Items (Opfer)

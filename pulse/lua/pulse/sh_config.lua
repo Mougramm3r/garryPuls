@@ -242,6 +242,9 @@ HT.GameDefaults = {
 
 	-- test mode
 	botsWalk     = false,
+
+	-- Pill Pack groups to hide in the character lists (nil = base packs hidden)
+	pillHidden   = {},
 }
 
 HT.Items = {

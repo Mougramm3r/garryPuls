@@ -756,7 +756,25 @@ Tabs.game = function()
 			end
 			AddInfo(p, "Items are spread over the map at round start. Only victims can pick them up (walk over them). Select them with the mouse wheel, left click uses them. Maps with a navmesh give the best spots.")
 		end },
-		{ "Test mode", function(p)
+		{ "Characters", function(p)
+			if not HT.PillsInstalled() then
+				AddInfo(p, "Parakeet's Pill Pack is not installed. With it, hunters can play as characters from character packs.")
+				return
+			end
+			AddInfo(p, "Which Pill Pack groups show up in the character picker and the role editor. The Pill Pack's own groups (Half-Life 2, Fun, Jake) are hidden by default.")
+			local packs = HT.GetPillPacks()
+			if #packs == 0 then AddInfo(p, "No characters found yet.") end
+			for _, pack in ipairs(packs) do
+				local base = HT.BASE_PILL_PACKS[pack.name] and "  (Pill Pack base)" or ""
+				AddCheck(p, pack.name .. "  ·  " .. pack.count .. " characters" .. base, not HT.PackHidden(pack.name), function(v)
+					local hidden = table.Copy(HT.Game.pillHidden or {})
+					hidden[pack.name] = not v
+					HT.Game.pillHidden = hidden
+					GameSet("pillHidden", hidden)
+				end)
+			end
+		end },
+				{ "Test mode", function(p)
 			AddButton(p, "Add a bot", function() RoundCmd("addbot") Refresh(1) end)
 			AddButton(p, "Kick all bots", function() RoundCmd("kickbots") Refresh(1) end)
 			AddCheck(p, "Bots walk around (sprint, jump, crouch)", g.botsWalk, function(v) GameSet("botsWalk", v) end)
@@ -796,7 +814,7 @@ Tabs.game = function()
 				local pills = { { "None (normal player model)", "" } }
 				for _, pl in ipairs(HT.GetPillList()) do pills[#pills + 1] = { pl.printName, pl.name } end
 				local cb = AddCombo(p, "Character (Pill Pack)", pills, edit.pill, function(v) edit.pill = v end)
-				if edit.pill ~= "" and not HT.PillPrintName(edit.pill) then cb:SetValue("Missing: " .. edit.pill) end
+				if edit.pill ~= "" and not HT.PillPrintName(edit.pill) then cb:SetValue("Hidden or missing: " .. edit.pill) end
 				AddInfo(p, "The hunter becomes this character for the whole round. The character brings its own attacks, so the hunter weapon is left out.")
 			end
 
