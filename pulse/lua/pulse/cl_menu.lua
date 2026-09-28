@@ -559,6 +559,34 @@ Tabs.players = function()
 				gear:SetTooltip("Default hunter settings of " .. ply:Nick())
 				gear.DoClick = function() OpenPlayerSettings(ply) end
 
+				-- PULSE admin rights: only the host / superadmins can change them
+				if HT.IsOwner(ply) then
+					local l = row:Add("DLabel")
+					l:Dock(RIGHT)
+					l:SetWide(80)
+					l:SetText("Owner")
+					l:SetTextColor(C.warn)
+				elseif HT.IsOwner(LP()) then
+					local adm = row:Add("DCheckBoxLabel")
+					adm:Dock(RIGHT)
+					adm:SetWide(80)
+					adm:SetText("Admin")
+					adm:SetTextColor(C.text)
+					adm:SetValue(ply:GetNWBool("HT_Admin", false))
+					adm.OnChange = function(_, v)
+						net.Start("HT_SetAdmin")
+						net.WriteEntity(ply)
+						net.WriteBool(v)
+						net.SendToServer()
+					end
+				elseif ply:GetNWBool("HT_Admin", false) then
+					local l = row:Add("DLabel")
+					l:Dock(RIGHT)
+					l:SetWide(80)
+					l:SetText("Admin")
+					l:SetTextColor(C.cold)
+				end
+
 				local pre = row:Add("DCheckBoxLabel")
 				pre:Dock(RIGHT)
 				pre:SetWide(110)
@@ -593,6 +621,7 @@ Tabs.players = function()
 			AddInfo(p, "Hunter: make someone a hunter right now (outside of rounds, for testing).")
 			AddInfo(p, "Next round: hunters for the next round when Game > Hunter selection is set to \"Preselected\".")
 			AddInfo(p, "Gear: change that player's Default hunter settings.")
+			AddInfo(p, "Admin: gives PULSE admin rights (Players, Server and Game tabs, start rounds, edit roles). Not GMod superadmin rights. Only the host or a superadmin can change this. Saved on the server.")
 		end },
 	} }
 end

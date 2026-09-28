@@ -314,10 +314,17 @@ end
 function HT.PhaseEnd() return GetGlobalFloat("HT_PhaseEnd", 0) end
 
 -- Host / superadmin
-function HT.IsManager(ply)
-	if not IsValid(ply) then return false end
-	if game.SinglePlayer() or ply:IsSuperAdmin() then return true end
+-- Owner: host / superadmin. Only owners can give or take PULSE admin rights.
+function HT.IsOwner(ply)
+	if not IsValid(ply) or not ply:IsPlayer() then return false end
+	if game.SinglePlayer() or ply:IsSuperAdmin() or ply:GetNWBool("HT_Owner", false) then return true end
 	return SERVER and ply:IsListenServerHost() or false
+end
+
+-- Manager: owners plus players who got PULSE admin rights (Players, Server and Game tabs)
+function HT.IsManager(ply)
+	if not IsValid(ply) or not ply:IsPlayer() then return false end
+	return HT.IsOwner(ply) or ply:GetNWBool("HT_Admin", false)
 end
 
 function HT.IsHunter(ply)

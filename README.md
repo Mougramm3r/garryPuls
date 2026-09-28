@@ -28,6 +28,11 @@ Deine Freunde laden den Client-Teil beim Joinen automatisch herunter.
 
 Links in jedem Tab ist eine Abschnittsliste; ein Klick springt direkt zum Abschnitt.
 
+**Admins:** „Admin“ in den Tabellen oben heißt Host/Superadmin **oder** ein Spieler mit PULSE-Adminrechten.
+Der Host bzw. ein Superadmin kann im Tab **Players** per Haken „Admin“ anderen Spielern PULSE-Adminrechte geben
+(Tabs Players, Server und Game, Runden starten, Rollen bearbeiten). Das sind **keine** GMod-Superadmin-Rechte.
+PULSE-Admins können selbst keine Adminrechte vergeben. Die Rechte werden gespeichert (`data/pulse/admins.json`).
+
 ## Tasten
 
 | Taste | Standard |

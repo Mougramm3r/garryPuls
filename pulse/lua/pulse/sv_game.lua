@@ -210,6 +210,39 @@ net.Receive("HT_RoleDelete", function(_, ply)
 	RefreshAll()
 end)
 
+------------------------------------------------------------------------
+-- PULSE admin rights (given by the host / superadmins, saved by SteamID)
+------------------------------------------------------------------------
+
+util.AddNetworkString("HT_SetAdmin")
+local ADMINS_FILE = DIR .. "/admins.json"
+local admins = util.JSONToTable(file.Read(ADMINS_FILE, "DATA") or "") or {}
+
+local function AdminKey(ply)
+	return ply:IsBot() and ("BOT_" .. ply:Nick()) or ply:SteamID64() or ply:SteamID()
+end
+
+hook.Add("PlayerInitialSpawn", "HT_Admins", function(ply)
+	timer.Simple(1, function()
+		if not IsValid(ply) then return end
+		ply:SetNWBool("HT_Owner", game.SinglePlayer() or ply:IsListenServerHost() or ply:IsSuperAdmin())
+		ply:SetNWBool("HT_Admin", admins[AdminKey(ply)] ~= nil)
+	end)
+end)
+
+net.Receive("HT_SetAdmin", function(_, ply)
+	local target = net.ReadEntity()
+	local state = net.ReadBool()
+	if not HT.IsOwner(ply) or not IsValid(target) or not target:IsPlayer() or HT.IsOwner(target) then return end
+
+	local key = AdminKey(target)
+	admins[key] = state and target:Nick() or nil
+	file.CreateDir(DIR)
+	file.Write(ADMINS_FILE, util.TableToJSON(admins, true))
+	target:SetNWBool("HT_Admin", state)
+	PrintMessage(HUD_PRINTTALK, "[PULSE] " .. target:Nick() .. (state and " is now a PULSE admin." or " is no longer a PULSE admin."))
+end)
+
 -- Admin: mark players as hunters for the next round ("Preselected")
 net.Receive("HT_Preselect", function(_, ply)
 	local target = net.ReadEntity()
