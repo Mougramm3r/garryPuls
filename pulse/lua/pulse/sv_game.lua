@@ -767,6 +767,7 @@ end)
 net.Receive("HT_PickPill", function(_, ply)
 	local pill = HT.ValidPill(net.ReadString())
 	ply:SetNWString("HT_DefPill", pill) -- remembered for next time
+	HT.StoreSetting(ply, "HT_DefPill", pill)
 
 	if round then
 		local p = round.players[ply]

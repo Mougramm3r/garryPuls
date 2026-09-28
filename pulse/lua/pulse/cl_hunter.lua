@@ -32,6 +32,9 @@ for i = 1, HT.SLOTS do
 	HT.Keys["slot" .. i] = CreateClientConVar("pulse_key_slot" .. i, tostring(KEY_PAD_0 + i), true, false, "Key: ability slot " .. i)
 end
 HT.KeyDefaults = { menu = KEY_F5, slot1 = KEY_PAD_1, slot2 = KEY_PAD_2, slot3 = KEY_PAD_3, slot4 = KEY_PAD_4 }
+for name, cvar in pairs(HT.Keys) do
+	cvars.AddChangeCallback(cvar:GetName(), function(_, _, new) cookie.Set("pulse_key_" .. name, new) end, "HT_KeyBackup")
+end
 
 -- Rescue commands for the console, e.g. when a key was bound by mistake
 function HT.ResetKeys()
@@ -77,7 +80,7 @@ end)
 -- Personal settings (sent to the server, remembered between sessions)
 ------------------------------------------------------------------------
 
-function HT.SendSetting(target, key, value, instant)
+function HT.SendSetting(target, key, value, instant, restore)
 	if isbool(value) then value = value and "1" or "0" end
 	value = tostring(value)
 	local function send()
@@ -86,6 +89,7 @@ function HT.SendSetting(target, key, value, instant)
 		net.WriteEntity(target)
 		net.WriteString(key)
 		net.WriteString(value)
+		net.WriteBool(restore == true)
 		net.SendToServer()
 	end
 	if instant then send() return end
@@ -101,9 +105,17 @@ hook.Add("InitPostEntity", "HT_Restore", function()
 		if not me then return end
 		for _, s in ipairs(HT.Settings) do
 			local saved = cookie.GetString("pulse_" .. s.key)
-			if saved then HT.SendSetting(me, s.key, saved, true) end
+			if saved then HT.SendSetting(me, s.key, saved, true, true) end
 		end
 		restored = true
+
+		-- keys: backup copy, in case the game didn't save them (e.g. after a crash)
+		for name, cvar in pairs(HT.Keys) do
+			local key = cookie.GetNumber("pulse_key_" .. name)
+			if key and key ~= cvar:GetInt() and cvar:GetInt() == HT.KeyDefaults[name] then
+				RunConsoleCommand(cvar:GetName(), tostring(key))
+			end
+		end
 	end)
 end)
 
@@ -522,7 +534,7 @@ end)
 -- Heartbeat (hunter sensor and victim heartbeat)
 ------------------------------------------------------------------------
 
-local HEART_SOUND = "physics/body/body_medium_impact_soft1.wav"
+local HEART_SOUND = "pulse_fx/heartbeat.wav"
 local heartDist, heartTime, nextBeat = -1, 0, 0
 local forcedHeartUntil = 0
 
@@ -553,8 +565,6 @@ local function HeartStrength(me)
 		if heartDist <= range then k = 1 - heartDist / range end
 	end
 	-- low sanity: the heartbeat gets louder in general
-	local fear = HT.Fear(me)
-	if fear > 0.4 then k = math.max(k, (fear - 0.4) / 0.6 * 0.85) end
 	if forcedHeartUntil > now then k = 1 end
 	return k
 end
@@ -571,10 +581,7 @@ hook.Add("Think", "HT_Heartbeat", function()
 
 	nextBeat = now + Lerp(closeness, 1.4, 0.35)
 	local vol = Lerp(closeness, 0.25, 1)
-	me:EmitSound(HEART_SOUND, 75, 60, vol, CHAN_STATIC)
-	timer.Simple(0.16, function()
-		if IsValid(me) then me:EmitSound(HEART_SOUND, 75, 52, vol * 0.8, CHAN_STATIC) end
-	end)
+	me:EmitSound(HEART_SOUND, 75, 100, vol, CHAN_STATIC)
 end)
 
 ------------------------------------------------------------------------

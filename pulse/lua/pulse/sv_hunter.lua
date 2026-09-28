@@ -4,6 +4,8 @@
 local HT = Pulse
 local CV = HT.CV
 
+resource.AddFile("sound/pulse_fx/heartbeat.wav")
+
 for _, name in ipairs({
 	"HT_Set", "HT_Ability", "HT_AdminSetHunter", "HT_AdminSetCVar",
 	"HT_Roared", "HT_Ping", "HT_Tracks", "HT_Heart", "HT_Blind",
@@ -133,6 +135,23 @@ end)
 local editable = {}
 for _, cv in pairs(CV) do editable[cv:GetName()] = cv end
 
+-- Server tab values are saved in data/pulse/server.json, so they survive a crash or restart
+local SERVER_FILE = "pulse/server.json"
+local serverValues = util.JSONToTable(file.Read(SERVER_FILE, "DATA") or "")
+local function SaveServerValues()
+	file.CreateDir("pulse")
+	file.Write(SERVER_FILE, util.TableToJSON(serverValues, true))
+end
+
+if not serverValues then
+	-- first start with this version: new balance for Roar and sanity
+	serverValues = { pulse_roar_slow = 0.75, pulse_roar_duration = 2, pulse_sanity_see = 0.5 }
+	SaveServerValues()
+end
+for name, value in pairs(serverValues) do
+	if editable[name] then RunConsoleCommand(name, tostring(value)) end
+end
+
 net.Receive("HT_AdminSetCVar", function(_, ply)
 	local name = net.ReadString()
 	local value = net.ReadFloat()
@@ -141,33 +160,81 @@ net.Receive("HT_AdminSetCVar", function(_, ply)
 	if not cv then return end
 	value = math.Clamp(value, cv:GetMin() or value, cv:GetMax() or value)
 	RunConsoleCommand(name, tostring(value))
+	serverValues[name] = value
+	SaveServerValues()
 end)
 
 -- Personal hunter settings: for yourself, or as admin for someone else
+-- Personal settings are also saved on the server (data/pulse/players.json, per SteamID),
+-- so they are back after a restart even if the game didn't save them.
+local PLAYERS_FILE = "pulse/players.json"
+local storedSettings = util.JSONToTable(file.Read(PLAYERS_FILE, "DATA") or "") or {}
+
+local function SettingsKey(ply)
+	return ply:IsBot() and ("BOT_" .. ply:Nick()) or ply:SteamID64() or ply:SteamID()
+end
+
+local function WritePlayers()
+	file.CreateDir("pulse")
+	file.Write(PLAYERS_FILE, util.TableToJSON(storedSettings))
+end
+hook.Add("ShutDown", "HT_SavePlayers", WritePlayers)
+
+-- Applies one setting and returns the cleaned value as text
+local function ApplySetting(target, key, raw)
+	local s = HT.SettingByKey[key]
+	if not s then return end
+	if s.type == "bool" then
+		target:SetNWBool(key, raw == "1")
+		return raw == "1" and "1" or "0"
+	elseif key == "HT_DefPill" then
+		local pill = HT.ValidPill(raw)
+		target:SetNWString(key, pill)
+		return pill
+	elseif s.type == "string" then
+		-- loadouts: store them cleaned up
+		local loadout = HT.SerializeLoadout(HT.ParseLoadout(raw).state)
+		target:SetNWString(key, loadout)
+		HT.RefreshLoadout(target)
+		return loadout
+	end
+	local v = tonumber(raw)
+	if not v then return end
+	v = math.Clamp(v, s.min, math.max(s.min, s.max()))
+	target:SetNWFloat(key, v)
+	return tostring(v)
+end
+
+function HT.StoreSetting(target, key, value)
+	local k = SettingsKey(target)
+	storedSettings[k] = storedSettings[k] or {}
+	storedSettings[k][key] = value
+	timer.Create("HT_SavePlayers", 2, 1, WritePlayers)
+end
+
 net.Receive("HT_Set", function(_, ply)
 	local target = net.ReadEntity()
 	local key = net.ReadString()
 	local raw = net.ReadString()
+	local restore = net.ReadBool() -- sent from the player's own backup when joining
 
 	if not IsValid(target) or not target:IsPlayer() then return end
 	if target ~= ply and not HT.IsManager(ply) then return end
 
-	local s = HT.SettingByKey[key]
-	if not s then return end
+	-- the server's copy wins over the player's backup
+	local saved = storedSettings[SettingsKey(target)]
+	if restore and saved and saved[key] ~= nil then return end
 
-	if s.type == "bool" then
-		target:SetNWBool(key, raw == "1")
-	elseif key == "HT_DefPill" then
-		target:SetNWString(key, HT.ValidPill(raw))
-	elseif s.type == "string" then
-		-- loadouts: store them cleaned up
-		target:SetNWString(key, HT.SerializeLoadout(HT.ParseLoadout(raw).state))
-		HT.RefreshLoadout(target)
-	else
-		local v = tonumber(raw)
-		if not v then return end
-		target:SetNWFloat(key, math.Clamp(v, s.min, math.max(s.min, s.max())))
-	end
+	local value = ApplySetting(target, key, raw)
+	if value ~= nil then HT.StoreSetting(target, key, value) end
+end)
+
+hook.Add("PlayerInitialSpawn", "HT_LoadSettings", function(ply)
+	timer.Simple(1, function()
+		if not IsValid(ply) then return end
+		for key, value in pairs(storedSettings[SettingsKey(ply)] or {}) do ApplySetting(ply, key, value) end
+		HT.RefreshLoadout(ply)
+	end)
 end)
 
 ------------------------------------------------------------------------
@@ -1011,13 +1078,12 @@ timer.Create("HT_Stamina", 0.1, 0, function()
 			if exhausted then ply:SetNWBool("HT_Exhausted", false) end
 			if st ~= 100 then ply:SetNWFloat("HT_Stamina", 100) end
 		else
-			local fear = HT.Fear(ply)
 			local fast = ply:GetVelocity():Length2D() > ply:GetWalkSpeed() + 20
 			local new
 			if ply:KeyDown(IN_SPEED) and ply:OnGround() and fast and not exhausted then
-				new = st - 100 / CV.staminaSprint:GetFloat() * 0.1 * (1 + fear)
+				new = st - 100 / CV.staminaSprint:GetFloat() * 0.1
 			else
-				new = st + 100 / CV.staminaRegen:GetFloat() * 0.1 * (1 - 0.5 * fear)
+				new = st + 100 / CV.staminaRegen:GetFloat() * 0.1
 			end
 			new = math.Clamp(new, 0, 100)
 

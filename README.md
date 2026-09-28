@@ -190,10 +190,8 @@ Im Tab **Game → Test mode**:
 **Sanity** startet bei 100 % (Balken unten links). Sie sinkt durch Schaden, wenn man den Jäger sieht und durch Schreck-Fähigkeiten
 (Roar, Jump Scare, Umdrehen bei Behind You, Gruselsound in der Nähe). Sie steigt nur langsam wieder, wenn man eine Weile mit anderen Opfern zusammen ist.
 
-Je niedriger die Sanity:
-- desto lauter und schneller hört man generell den Herzschlag
-- desto schneller sinkt die Ausdauer
-- desto länger laden die eigenen Fähigkeiten
+Je niedriger die Sanity, desto länger laden die eigenen Fähigkeiten und desto blasser wird das Bild.
+Sanity beeinflusst **nicht** Stamina und Herzschlag. Beim Anblick des Jägers sinkt sie um 0,5 pro Sekunde (einstellbar).
 
 Bei **0 %**: Halluzinationen (verzerrtes Bild, Flüstern, falsche Jäger-Schatten), der Jäger sieht einen ab und zu lila durch Wände,
 Fußspuren bleiben doppelt so lange und schon normales Gehen erzeugt Pings im Geräusch-Radar.
@@ -201,3 +199,10 @@ Fußspuren bleiben doppelt so lange und schon normales Gehen erzeugt Pings im Ge
 **Stamina** (nur während einer Runde): Sprinten verbraucht Ausdauer. Ist sie leer, kann man nur gehen, bis sie wieder zu 30 % gefüllt ist.
 
 Alle Werte stellt der Admin im Tab **Server** unter „Sanity“ und „Stamina“ ein.
+
+## Speichern
+
+- **Persönliche Einstellungen** (Hunter → Default: Slots, Aim-Hilfe, Charakter …) speichert der Server pro Spieler in
+  `data/pulse/players.json`. Sie sind nach einem Neustart oder Absturz wieder da.
+- **Werte aus dem Tab Server** stehen in `data/pulse/server.json`, **Rollen** und **Game-Einstellungen** in `roles.json` und `game.json`.
+- **Tasten** speichert GMod bei jedem Spieler selbst. PULSE legt zusätzlich eine Sicherungskopie an.

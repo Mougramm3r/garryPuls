@@ -531,7 +531,7 @@ Tabs.victim = function()
 		{ "Sanity & stamina", function(p)
 			if CV.sanityEnabled:GetBool() then
 				AddInfo(p, "Sanity starts at 100%. Damage, seeing the hunter and scares lower it. Stay close to other victims for a while to slowly raise it again.", C.text)
-				AddInfo(p, "Low sanity: louder heartbeat, stamina drains faster, abilities take longer to recharge.")
+				AddInfo(p, "Low sanity: abilities take longer to recharge, the picture gets paler.")
 				AddInfo(p, "At 0%: hallucinations, the hunter sometimes sees you through walls, your footprints last longer and even walking makes noise.")
 			end
 			if CV.staminaEnabled:GetBool() then

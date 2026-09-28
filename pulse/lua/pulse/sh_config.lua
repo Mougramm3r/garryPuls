@@ -14,8 +14,8 @@ HT.CV = {
 	chaserCooldown     = CreateConVar("pulse_chaser_cooldown", "15", SV_FLAGS, "Chaser pulse: cooldown in seconds", 0, 600),
 
 	roarRadius         = CreateConVar("pulse_roar_radius", "600", SV_FLAGS, "Roar: radius in units", 100, 3000),
-	roarSlow           = CreateConVar("pulse_roar_slow", "0.5", SV_FLAGS, "Roar: victim speed (0.5 = half speed)", 0.1, 1),
-	roarDuration       = CreateConVar("pulse_roar_duration", "3", SV_FLAGS, "Roar: slow duration in seconds", 0.5, 10),
+	roarSlow           = CreateConVar("pulse_roar_slow", "0.75", SV_FLAGS, "Roar: victim speed (0.5 = half speed)", 0.1, 1),
+	roarDuration       = CreateConVar("pulse_roar_duration", "2", SV_FLAGS, "Roar: slow duration in seconds", 0.5, 10),
 	roarCooldown       = CreateConVar("pulse_roar_cooldown", "30", SV_FLAGS, "Roar: cooldown in seconds", 0, 600),
 
 	noiseRadius        = CreateConVar("pulse_noise_radius", "2500", SV_FLAGS, "Noise radar: range in units", 200, 20000),
@@ -67,7 +67,7 @@ HT.CV = {
 
 	sanityEnabled      = CreateConVar("pulse_sanity", "1", SV_FLAGS, "Victims have sanity", 0, 1),
 	sanityDamage       = CreateConVar("pulse_sanity_damage", "0.5", SV_FLAGS, "Sanity lost per point of damage", 0, 5),
-	sanitySee          = CreateConVar("pulse_sanity_see", "3", SV_FLAGS, "Sanity lost per second while seeing a hunter", 0, 30),
+	sanitySee          = CreateConVar("pulse_sanity_see", "0.5", SV_FLAGS, "Sanity lost per second while seeing a hunter", 0, 30),
 	sanityScare        = CreateConVar("pulse_sanity_scare", "1", SV_FLAGS, "Multiplier for sanity lost by scare abilities", 0, 5),
 	sanityRegen        = CreateConVar("pulse_sanity_regen", "1.5", SV_FLAGS, "Sanity regained per second near other victims", 0, 20),
 	sanityGroupTime    = CreateConVar("pulse_sanity_group_time", "5", SV_FLAGS, "Seconds near another victim before sanity rises", 0, 60),
