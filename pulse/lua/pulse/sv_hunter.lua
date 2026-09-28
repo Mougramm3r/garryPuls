@@ -65,6 +65,7 @@ function HT.ResetAbilityState(ply)
 	ply:SetNWBool("HT_Exhausted", false)
 	ply:SetNWFloat("HT_RevealUntil", 0)
 	ply:SetNWFloat("HT_RootUntil", 0)
+	ply:SetNWFloat("HT_HurtUntil", 0)
 	ply:SetNWFloat("HT_BlackoutUntil", 0)
 	ply.HT_BehindVictim = nil
 	ply.HT_BehindSeen = nil
@@ -967,6 +968,20 @@ hook.Add("SetupPlayerVisibility", "HT_PVS", function(ply)
 end)
 
 -- Adrenaline: a victim hit by the hunter is faster for a moment
+-- A hit stops the hunter's sprint for a moment
+hook.Add("PostEntityTakeDamage", "HT_HunterHurt", function(ent, dmg, took)
+	if not took or not IsValid(ent) or dmg:GetDamage() <= 0 then return end
+	-- Pill Pack characters take the damage on their own entity
+	if not ent:IsPlayer() then
+		local owner = HT.OwnerPlayer(ent)
+		if not (IsValid(owner) and owner:IsPlayer() and pk_pills and pk_pills.getMappedEnt(owner) == ent) then return end
+		ent = owner
+	end
+	if not HT.IsHunter(ent) then return end
+	local slow = CV.hunterHurtSlow:GetFloat()
+	if slow > 0 then ent:SetNWFloat("HT_HurtUntil", CurTime() + slow) end
+end)
+
 hook.Add("PostEntityTakeDamage", "HT_Adrenaline", function(ent, dmg, took)
 	if not took or not IsValid(ent) or not ent:IsPlayer() or not HT.IsVictim(ent) then return end
 

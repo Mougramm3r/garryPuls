@@ -53,6 +53,7 @@ Hinweis: F5 macht in GMod auch einen Screenshot. Wen das stört, legt das Menü 
 1. Der Admin stellt im Tab **Game** alles ein und drückt **Start round**.
 2. Jäger werden bestimmt (zufällig oder vorausgewählt). Alle respawnen, Jäger bekommen ihre Waffe (Standard: Brechstange), Opfer die Startwaffen aus **Game → Victim weapons** (Standard: keine).
    Ob Opfer dem Jäger damit Schaden machen dürfen, ist dort einstellbar (Standard: aus).
+   Wird der Jäger getroffen, kann er kurz nicht sprinten (Standard 1,5 s, Server-Tab).
    Bauen, Noclip und Spawnen sind während der Runde aus.
 3. **Versteckphase** (Standard 30 s, abschaltbar): Die Opfer verstecken sich, der Jäger ist eingefroren und sieht nichts.
    Bei „Player choice“ wählt der Jäger in dieser Zeit seine Rolle (wer nicht wählt, bekommt eine zufällige).

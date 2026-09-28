@@ -664,6 +664,7 @@ end
 Tabs.server = function()
 	return { sections = {
 		{ "Hunter abilities", function(p)
+			ServerSlider(p, "Hunter hit: no sprint for (s, 0 = off)", CV.hunterHurtSlow, 1)
 			ServerSlider(p, "Aim assist: max strength", CV.aimMaxStrength, 2)
 			ServerSlider(p, "Aim assist: max angle", CV.aimMaxFov)
 			ServerSlider(p, "Chaser: max radius", CV.chaserMaxRadius)

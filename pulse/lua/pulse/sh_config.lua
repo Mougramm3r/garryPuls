@@ -63,6 +63,8 @@ HT.CV = {
 	behindTime         = CreateConVar("pulse_behind_time", "10", SV_FLAGS, "Behind You: max seconds behind the victim", 2, 30),
 	behindCooldown     = CreateConVar("pulse_behind_cooldown", "60", SV_FLAGS, "Behind You: cooldown in seconds", 0, 600),
 
+	hunterHurtSlow     = CreateConVar("pulse_hunter_hurt_slow", "1.5", SV_FLAGS, "Hunter: seconds without sprinting after taking damage (0 = off)", 0, 10),
+
 	jumpRadius         = CreateConVar("pulse_jump_radius", "700", SV_FLAGS, "Jump scare: radius in units", 100, 5000),
 	jumpTime           = CreateConVar("pulse_jump_time", "0.8", SV_FLAGS, "Jump scare: how long the face is shown", 0.2, 3),
 	jumpCooldown       = CreateConVar("pulse_jump_cooldown", "60", SV_FLAGS, "Jump scare: cooldown in seconds", 0, 600),
@@ -457,8 +459,8 @@ hook.Add("SetupMove", "HT_Speed", function(ply, mv)
 		mv:SetMaxClientSpeed(math.min(mv:GetMaxClientSpeed(), walk))
 		mv:SetMaxSpeed(math.min(mv:GetMaxSpeed(), walk))
 	end
-	-- noise radar on: the hunter can't sprint
-	if HT.IsHunter(ply) and HT.IsOn(ply, "noise") then
+	-- noise radar on or just hurt: the hunter can't sprint
+	if HT.IsHunter(ply) and (HT.IsOn(ply, "noise") or ply:GetNWFloat("HT_HurtUntil", 0) > CurTime()) then
 		local walk = ply:GetWalkSpeed()
 		mv:SetMaxClientSpeed(math.min(mv:GetMaxClientSpeed(), walk))
 		mv:SetMaxSpeed(math.min(mv:GetMaxSpeed(), walk))

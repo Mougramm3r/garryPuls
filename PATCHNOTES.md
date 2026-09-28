@@ -17,3 +17,4 @@
 - **Startwaffen für Opfer:** neuer Bereich Game → „Victim weapons“. Mehrere HL2-Waffen ankreuzbar, eigene Waffen-Klassen per Textfeld (kommagetrennt). Opfer bekommen etwas Munition dazu.
 - **Neu:** Schalter „Victims can hurt the hunter with their weapons“ (Standard: aus).
 - **Medkit entfernt.**
+- **Jäger getroffen:** Schaden unterbricht den Sprint des Jägers, er kann 1,5 s nur gehen (einstellbar unter Server → „Hunter hit: no sprint for“, 0 = aus). Gilt auch für Pill-Charaktere.
