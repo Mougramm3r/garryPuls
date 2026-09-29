@@ -74,8 +74,12 @@ local function ValidateGame(g)
 	out.botsWalk = B(g.botsWalk, d.botsWalk)
 	out.features = {}
 	for _, feat in ipairs(HT.HideableFeatures) do
-		out.features[feat.id] = istable(g.features) and (g.features[feat.id] == true or g.features[feat.id] == 1) or false
+		local v
+		if istable(g.features) then v = g.features[feat.id] end
+		if v == nil then v = feat.default end
+		out.features[feat.id] = v == true or v == 1
 	end
+	out.version = d.version
 	out.pillHidden = {}
 	if istable(g.pillHidden) then
 		local n = 0
@@ -119,9 +123,19 @@ local function Load()
 	end
 
 	local g = util.JSONToTable(file.Read(GAME_FILE, "DATA") or "")
+	local migrate = istable(g) and (tonumber(g.version) or 1) < HT.GameDefaults.version
+	if migrate and (tonumber(g.version) or 1) < 2 then
+		-- new default: every hunter plays their own Default setup
+		g.roleMode = "fixed"
+		g.fixedRole = HT.DEFAULT_ROLE
+	end
 	local merged = table.Copy(HT.GameDefaults)
 	if istable(g) then table.Merge(merged, g) end
 	HT.Game = ValidateGame(merged)
+	if migrate then
+		file.CreateDir(DIR)
+		file.Write(GAME_FILE, util.TableToJSON(HT.Game, true))
+	end
 end
 Load()
 
@@ -170,6 +184,10 @@ net.Receive("HT_RoleSave", function(_, ply)
 	local oldName = CleanRoleName(data.old)
 	local name = CleanRoleName(data.name)
 	if name == "" then ply:ChatPrint("[PULSE] The role needs a name.") return end
+	if string.lower(name) == string.lower(HT.DEFAULT_ROLE) then
+		ply:ChatPrint("[PULSE] \"" .. HT.DEFAULT_ROLE .. "\" is reserved for every hunter's own setup.")
+		return
+	end
 
 	local existing = HT.FindRole(name)
 	local role = HT.FindRole(oldName)
@@ -210,7 +228,7 @@ net.Receive("HT_RoleDelete", function(_, ply)
 			break
 		end
 	end
-	if not HT.FindRole(HT.Game.fixedRole) then HT.Game.fixedRole = HT.Roles[1].name end
+	if HT.Game.fixedRole ~= HT.DEFAULT_ROLE and not HT.FindRole(HT.Game.fixedRole) then HT.Game.fixedRole = HT.DEFAULT_ROLE end
 	Save()
 	SendData()
 	RefreshAll()
@@ -345,9 +363,7 @@ end
 
 local function AssignMissingRoles()
 	for _, ply in ipairs(Participants(true)) do
-		if not round.players[ply].roleName then
-			AssignRole(ply, HT.Roles[math.random(#HT.Roles)].name)
-		end
+		if not round.players[ply].roleName then AssignDefault(ply) end
 	end
 end
 
@@ -672,7 +688,9 @@ local function StartRound(admin, opts)
 	SpawnItems()
 
 	if g.roleMode == "fixed" then
-		for _, h in ipairs(hunters) do AssignRole(h, g.fixedRole) end
+		for _, h in ipairs(hunters) do
+			if g.fixedRole == HT.DEFAULT_ROLE then AssignDefault(h) else AssignRole(h, g.fixedRole) end
+		end
 	elseif g.roleMode == "random" then
 		for _, h in ipairs(hunters) do AssignRole(h, HT.Roles[math.random(#HT.Roles)].name) end
 	else

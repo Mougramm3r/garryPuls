@@ -26,20 +26,52 @@ local C = HT.Colors
 
 -- Keys (only for you, saved)
 HT.Keys = {
-	menu = CreateClientConVar("pulse_key_menu", tostring(KEY_F5), true, false, "Key: open menu"),
+	menu = CreateClientConVar("pulse_key_menu", tostring(KEY_F4), true, false, "Key: open menu"),
 }
 for i = 1, HT.SLOTS do
-	HT.Keys["slot" .. i] = CreateClientConVar("pulse_key_slot" .. i, tostring(KEY_PAD_0 + i), true, false, "Key: ability slot " .. i)
+	HT.Keys["slot" .. i] = CreateClientConVar("pulse_key_slot" .. i, tostring(KEY_0 + i), true, false, "Key: ability slot " .. i)
 end
-HT.KeyDefaults = { menu = KEY_F5, slot1 = KEY_PAD_1, slot2 = KEY_PAD_2, slot3 = KEY_PAD_3, slot4 = KEY_PAD_4 }
+HT.KeyDefaults = { menu = KEY_F4, slot1 = KEY_1, slot2 = KEY_2, slot3 = KEY_3, slot4 = KEY_4 }
+
+-- one-time update: the old default keys (F5, numpad 1-4) become the new ones (F4, 1-4)
+local OLD_KEY_DEFAULTS = { menu = KEY_F5, slot1 = KEY_PAD_1, slot2 = KEY_PAD_2, slot3 = KEY_PAD_3, slot4 = KEY_PAD_4 }
+if cookie.GetString("pulse_keys_version") ~= "2" then
+	for name, cvar in pairs(HT.Keys) do
+		if cvar:GetInt() == OLD_KEY_DEFAULTS[name] then cvar:SetInt(HT.KeyDefaults[name]) end
+		if cookie.GetNumber("pulse_key_" .. name) == OLD_KEY_DEFAULTS[name] then cookie.Set("pulse_key_" .. name, HT.KeyDefaults[name]) end
+	end
+	cookie.Set("pulse_keys_version", "2")
+end
+-- one-time update: everyone starts with the new Default setup
+if cookie.GetString("pulse_default_version") ~= "2" then
+	cookie.Delete("pulse_HT_DefLoadout")
+	cookie.Set("pulse_default_version", "2")
+end
+
 for name, cvar in pairs(HT.Keys) do
 	cvars.AddChangeCallback(cvar:GetName(), function(_, _, new) cookie.Set("pulse_key_" .. name, new) end, "HT_KeyBackup")
+end
+
+-- Number keys on ability slots: don't also switch weapons (the mouse wheel still does)
+hook.Add("PlayerBindPress", "HT_SlotKeys", function(_, bind, pressed, code)
+	if not pressed or not code or not string.find(bind, "^slot%d") then return end
+	for i = 1, HT.SLOTS do
+		if HT.Keys["slot" .. i]:GetInt() == code then return true end
+	end
+end)
+
+-- Victim toggles (only on this client): heartbeat
+HT.VictimToggles = { vheart = CreateClientConVar("pulse_victim_heart_on", "1", true, false, "Victims: hear the heartbeat") }
+function HT.VictimToggleOn(ply, id)
+	local cvar = HT.VictimToggles[id]
+	local def = HT.AbilityByID[id]
+	return ply == LocalPlayer() and cvar ~= nil and cvar:GetBool() and def.allow:GetBool()
 end
 
 -- Rescue commands for the console, e.g. when a key was bound by mistake
 function HT.ResetKeys()
 	for name, cvar in pairs(HT.Keys) do RunConsoleCommand(cvar:GetName(), tostring(HT.KeyDefaults[name])) end
-	HT.Notify("Keys reset: menu F5, ability slots Numpad 1-4.")
+	HT.Notify("Keys reset: menu F4, ability slots 1-4.")
 end
 concommand.Add("pulse_reset_keys", HT.ResetKeys)
 concommand.Add("pulse_menu", function() if HT.OpenMenu then HT.OpenMenu() end end)
@@ -161,6 +193,13 @@ function HT.UseAbility(id)
 	else
 		if not HT.IsVictim(me) then return end
 		if not def.allow:GetBool() then HT.Notify(def.name .. " is disabled on this server.") return end
+		if def.kind == "toggle" then
+			local cvar = HT.VictimToggles[id]
+			cvar:SetBool(not cvar:GetBool())
+			surface.PlaySound("buttons/blip1.wav")
+			HT.Notify(def.name .. (cvar:GetBool() and " ON" or " OFF"))
+			return
+		end
 	end
 
 	local wait = HT.ReadyIn(me, id)
@@ -269,8 +308,8 @@ hook.Add("Think", "HT_Keys", function()
 	-- a menu key on left/right click (old setting) would block the game: reset it
 	local menuKey = HT.Keys.menu:GetInt()
 	if menuKey == MOUSE_LEFT or menuKey == MOUSE_RIGHT then
-		RunConsoleCommand(HT.Keys.menu:GetName(), tostring(KEY_F5))
-		HT.Notify("The menu key was on a mouse button and has been reset to F5.")
+		RunConsoleCommand(HT.Keys.menu:GetName(), tostring(KEY_F4))
+		HT.Notify("The menu key was on a mouse button and has been reset to F4.")
 		return
 	end
 
@@ -575,7 +614,7 @@ local function HeartStrength(me)
 	end
 
 	local k = 0
-	if CV.victimHeart:GetBool() and fresh then
+	if CV.victimHeart:GetBool() and fresh and HT.IsOn(me, "vheart") then
 		local range = CV.victimHeartRange:GetFloat()
 		if heartDist <= range then k = 1 - heartDist / range end
 	end

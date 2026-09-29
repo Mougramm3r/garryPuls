@@ -13,9 +13,9 @@ Deine Freunde laden den Client-Teil beim Joinen automatisch herunter.
 1. Kopiere den Ordner `pulse` nach `garrysmod/addons/` (einen alten Ordner `hunter_tools` vorher löschen).
    Richtig ist: `garrysmod/addons/pulse/lua/autorun/pulse_init.lua`.
 2. Starte GMod, **Neues Spiel** (Sandbox, mehr als 1 Spieler) und hoste die Runde.
-3. Nach dem Joinen kommt im Chat „PULSE loaded“. Mit **F5** öffnest du das Menü.
+3. Nach dem Joinen kommt im Chat „PULSE loaded“. Mit **F4** öffnest du das Menü.
 
-## Menü (F5)
+## Menü (F4)
 
 | Tab | Wer | Inhalt |
 |---|---|---|
@@ -38,14 +38,14 @@ PULSE-Admins können selbst keine Adminrechte vergeben. Die Rechte werden gespei
 
 | Taste | Standard |
 |---|---|
-| Menü | **F5** |
-| Slot 1–4 | **Numpad 1–4** |
+| Menü | **F4** |
+| Slot 1–4 | **1–4** |
 
 Jäger und Opfer nutzen dieselben 4 Slot-Tasten. Was ein Slot macht, hängt von der Rolle ab.
-Hinweis: F5 macht in GMod auch einen Screenshot. Wen das stört, legt das Menü im Tab Keybinds auf eine andere Taste.
+Die Slot-Tasten wechseln keine Waffen mehr, Waffen und Items wählst du mit dem **Mausrad**. Wer vorher die alten Standardtasten (F5, Numpad) hatte, bekommt einmalig automatisch die neuen.
 
 **Taste versehentlich falsch belegt?** In der Konsole (Taste `^`):
-- `pulse_reset_keys` setzt alle Tasten zurück (Menü F5, Slots Numpad 1–4)
+- `pulse_reset_keys` setzt alle Tasten zurück (Menü F4, Slots 1–4)
 - `pulse_menu` öffnet das Menü ohne Taste
 - Linke und rechte Maustaste lassen sich nicht mehr belegen
 
@@ -75,7 +75,10 @@ Opfer können dem Jäger keinen direkten Schaden machen.
 Eine Rolle ist ein Jäger-Preset: ein Name und welche Fähigkeit auf welchem Slot liegt.
 Jede Fähigkeit ist **Off**, auf **Slot 1–4** oder (bei An/Aus-Fähigkeiten) **Passive** = immer an. Ausnahme: **Noise Radar** kann nicht passiv sein.
 Zusätzlich gibt es **Menu only**: Die Fähigkeit hat keine Taste und wird im Hunter-Menü mit „Use“ ausgelöst (beliebig viele pro Rolle).
-Rollen bearbeitest du im Tab **Game → Role editor**. Sie werden auf dem Server gespeichert (`data/pulse/roles.json`).
+Rollen bearbeitest du im eigenen Tab **Role editor** (links neben Game). Sie werden auf dem Server gespeichert (`data/pulse/roles.json`).
+
+**Default** ist das eigene Setup jedes Jägers (Hunter → Default) und die Standard-Rolle: Game → Role assignment steht standardmäßig auf **Fixed role = Default**, im Auswahlfenster steht Default ganz oben, und wer nicht rechtzeitig wählt, spielt Default. Mit Pill Pack wählt man bei Default zu Rundenbeginn seinen Charakter.
+Startwert für alle Spieler: 1 Chaser Pulse, 2 Roar, 3 Stalk, 4 Night Vision, Heartbeat Sensor im Menü, Footprints passiv.
 
 Mitgelieferte Rollen:
 
@@ -84,7 +87,7 @@ Mitgelieferte Rollen:
 | Stalker | 1 Behind You, 2 Scary Sounds, 3 Teleport, 4 Roar | Stalk | Footprints, Heartbeat Sensor |
 | Tracker | 1 Chaser Pulse, 2 Roar, 3 Noise Radar, 4 Scary Sounds | Stalk | Footprints |
 | Brute | 1 Roar, 2 Teleport, 3 Jump Scare, 4 Chaser Pulse | – | Heartbeat Sensor |
-| Seer | 1 Radar, 2 Chaser Pulse, 3 Jump Scare, 4 Scary Sounds | Stalk | Heartbeat Sensor |
+| Seer | 1 Mark, 2 Chaser Pulse, 3 Jump Scare, 4 Scary Sounds | Stalk | Heartbeat Sensor |
 | Phantom | 1 Mimic, 2 Blackout, 3 Trap, 4 Door Slam | Mark | Night Vision, Heartbeat Sensor |
 
 Rollenvergabe (Game → Role assignment): **Fixed role**, **Player choice** (Auswahlfenster beim Start) oder **Random**.
@@ -98,7 +101,7 @@ Rollenvergabe (Game → Role assignment): **Fixed role**, **Player choice** (Aus
 | Teleport | Active | Teleport dorthin, wo du hinschaust |
 | Scary Sounds | Active | Soundauswahl (Kinderlachen, Schreie …), abspielbar bei dir, hinter einem Opfer, wo du hinschaust oder überall |
 | Aim Assist | Toggle | Zieht das Fadenkreuz auf sichtbare Opfer (Kreis zeigt den Winkel). **Standardmäßig ausgeblendet**, im Entwickler-Menü einschaltbar |
-| Radar | Toggle | Alle Opfer rot umrandet durch Wände |
+| Radar | Toggle | Alle Opfer rot umrandet durch Wände. **Standardmäßig ausgeblendet** (Entwickler-Menü) |
 | Noise Radar | Toggle | Wer rennt, springt oder schießt, erscheint als Ping (pro Opfer höchstens alle 4 s). Nur an/aus, nicht passiv. Solange an, kannst du nicht sprinten |
 | Footprints | Toggle | Leuchtende Fußspuren der Opfer |
 | Heartbeat Sensor | Toggle | Herzschlag wird schneller, je näher ein Opfer ist |
@@ -109,7 +112,7 @@ Rollenvergabe (Game → Role assignment): **Fixed role**, **Player choice** (Aus
 | Trap | Active | Falle auf den Boden legen (max. 3). Tritt ein Opfer hinein, hängt es fest, es klappert laut und du bekommst einen Ping |
 | Mark | Active | Ein sichtbares Opfer anvisieren: Es leuchtet 10 s lila durch Wände |
 | Mimic | Active | Du siehst aus wie ein zufälliges Opfer, bis du angreifst, getroffen wirst oder die Zeit abläuft. Namensanzeigen sind in Runden aus |
-| Door Slam | Active | Türen in der Nähe knallen zu und sind kurz verschlossen (funktioniert nur auf Maps mit normalen Türen) |
+| Door Slam | Active | Türen in der Nähe knallen zu und sind kurz verschlossen (funktioniert nur auf Maps mit normalen Türen). Im Entwickler-Menü abschaltbar |
 | Night Vision | Toggle | Grüne, verrauschte und leicht unscharfe Nachtsicht mit Scanlines. Licht nur in einem kleinen Radius (einstellbar) |
 
 HUD des Jägers oben rechts: Slot 1–4 mit Status (READY, Abklingzeit, ACTIVE, ON/OFF) und Taste, darunter die Menü-Taste
@@ -127,7 +130,7 @@ Map neu starten. Sie erscheinen mit ★ in der Soundauswahl.
 | 3 | Decoy | Dose werfen, der Jäger bekommt dort einen falschen Ping |
 | – | Adrenaline | Nach einem Treffer des Jägers kurz schneller |
 | – | Hiding Bonus | Still in der Hocke bleiben → unsichtbar für Radar und Chaser Pulse |
-| – | Heartbeat | Optional: Opfer hören ihr Herz, wenn ein Jäger nah ist |
+| 4 | Heartbeat | Nur wenn der Admin es erlaubt (Server → Victim heartbeat): Herz schlägt schneller, wenn ein Jäger nah ist. Mit Slot 4 an/aus |
 
 Alle Opfer-Fähigkeiten kann der Admin im Tab **Server** einzeln abschalten und einstellen.
 
@@ -186,7 +189,7 @@ Nach jeder Runde zeigt das Ergebnisfenster den Zwischenstand, nach der letzten R
 ## Entwickler-Menü
 
 Als Admin **Shift + Rechtsklick auf den Tab SERVER**:
-- **Hidden features:** standardmäßig ausgeblendete Funktionen einschalten (zurzeit Aim Assist). Ausgeblendet = nirgends sichtbar (Server-Tab, Role editor, Hunter-Menü, HUD) und ohne Funktion.
+- **Hidden features:** Funktionen ein- und ausblenden: Aim Assist (aus), Radar (aus), Door Slam (an). Ausgeblendet = nirgends sichtbar (Server-Tab, Role editor, Hunter-Menü, HUD) und ohne Funktion.
 - **Test mode** (siehe unten)
 - **Make hunter now:** Spieler außerhalb einer Runde sofort zum Jäger machen (zum Ausprobieren der Fähigkeiten)
 - **Experimental:** Blackout schaltet Map-Lichter aus, Door-Slam-Werte, Aim Assist auch auf NPCs (nur wenn Aim Assist eingeschaltet ist)

@@ -121,7 +121,7 @@ hook.Add("PlayerInitialSpawn", "HT_Join", function(ply)
 	timer.Simple(5, function()
 		if not IsValid(ply) then return end
 		HT.RefreshLoadout(ply)
-		ply:ChatPrint("[PULSE] PULSE loaded. Press F5 to open the menu.")
+		ply:ChatPrint("[PULSE] PULSE loaded. Press F4 to open the menu.")
 	end)
 end)
 
@@ -183,7 +183,8 @@ end)
 -- Personal settings are also saved on the server (data/pulse/players.json, per SteamID),
 -- so they are back after a restart even if the game didn't save them.
 local PLAYERS_FILE = "pulse/players.json"
-local storedSettings = util.JSONToTable(file.Read(PLAYERS_FILE, "DATA") or "") or {}
+-- keep the SteamID64 keys as text (they are too long to become numbers)
+local storedSettings = util.JSONToTable(file.Read(PLAYERS_FILE, "DATA") or "", false, true) or {}
 
 local function SettingsKey(ply)
 	return ply:IsBot() and ("BOT_" .. ply:Nick()) or ply:SteamID64() or ply:SteamID()
@@ -194,6 +195,16 @@ local function WritePlayers()
 	file.Write(PLAYERS_FILE, util.TableToJSON(storedSettings))
 end
 hook.Add("ShutDown", "HT_SavePlayers", WritePlayers)
+
+-- one-time update: everyone gets the new Default setup
+storedSettings._meta = istable(storedSettings._meta) and storedSettings._meta or {}
+if (tonumber(storedSettings._meta.version) or 1) < 2 then
+	for k, entry in pairs(storedSettings) do
+		if k ~= "_meta" and istable(entry) then entry.HT_DefLoadout = nil end
+	end
+	storedSettings._meta.version = 2
+	WritePlayers()
+end
 
 -- Applies one setting and returns the cleaned value as text
 local function ApplySetting(target, key, raw)

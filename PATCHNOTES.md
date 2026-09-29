@@ -31,3 +31,18 @@
 - Rolle Brute: Slot 4 ist jetzt Chaser Pulse statt Aim Assist.
 - Aus Players- und Hunter-Tab ins Entwickler-Menü umgezogen: **„Make hunter now“** (Spieler sofort zum Jäger machen).
 - Neuer Abschnitt **Experimental** im Entwickler-Menü: Blackout-Map-Lichter, Door-Slam-Werte, Aim Assist auf NPCs.
+
+## Update: Default-Rolle, Tasten & Rollen-Editor
+
+- **Tasten:** Menü jetzt **F4**, Slots **1–4** (statt Numpad). Die Slot-Tasten wechseln keine Waffen mehr (Mausrad benutzen). Alte Standardtasten werden einmalig automatisch umgestellt.
+- **Default-Rolle ist jetzt Standard:**
+  - Game → Role assignment steht standardmäßig auf „Fixed role“ mit „Default“ (bestehende Einstellungen einmalig umgestellt).
+  - Im Rollen-Auswahlfenster steht Default ganz oben. Wer nicht wählt, bekommt Default statt einer Zufallsrolle.
+  - Mit Pill Pack wählt man bei Default zu Rundenbeginn seinen Charakter.
+  - Neues Default-Setup für alle (einmalig zurückgesetzt): 1 Chaser Pulse, 2 Roar, 3 Stalk, 4 Night Vision, Heartbeat Sensor im Menü, Footprints passiv.
+  - Eine Rolle darf nicht mehr „Default“ heißen.
+- **Rollen-Editor** hat einen eigenen Tab links neben Game.
+- **Entwickler-Menü → Hidden features:** Radar (aus) und Door Slam (an) dazu, Aim Assist bleibt aus.
+- Rolle Seer: Slot 1 ist jetzt Mark statt Radar.
+- **Opfer-Herzschlag:** auf Slot 4 selbst an- und ausschaltbar (wenn der Admin ihn unter Server erlaubt).
+- Fix: Persönliche Einstellungen werden nach einem Server-Neustart zuverlässig wieder der richtigen SteamID zugeordnet.

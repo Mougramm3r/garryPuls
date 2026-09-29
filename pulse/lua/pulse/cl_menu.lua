@@ -348,7 +348,7 @@ local function DefaultSections(target)
 			AddSlider(p, "Strength", 0, CV.aimMaxStrength:GetFloat(), 2, Get(target, "HT_AimStrength"), function(v) HT.SendSetting(target, "HT_AimStrength", v) end)
 			AddSlider(p, "Angle (degrees)", 1, CV.aimMaxFov:GetFloat(), 0, Get(target, "HT_AimFov"), function(v) HT.SendSetting(target, "HT_AimFov", v) end)
 		end },
-		{ "Radar", function(p)
+		HT.FeatureOn("radar") and { "Radar", function(p)
 			AddCheck(p, "Show names and distance", Get(target, "HT_ESPNames"), function(v) HT.SendSetting(target, "HT_ESPNames", v) end)
 		end },
 		{ "Chaser Pulse", function(p)
@@ -429,7 +429,7 @@ end
 local function CharacterInfo(p, me)
 	local pill = me:GetNWString("HT_PillName", "")
 	if pill == "" then
-		AddInfo(p, HT.PillsInstalled() and "No character. The admin can give roles a character from the Pill Pack in Game > Role editor."
+		AddInfo(p, HT.PillsInstalled() and "No character. The admin can give roles a character from the Pill Pack in the Role editor tab."
 			or "Parakeet's Pill Pack is not installed, so hunters use the normal player model.")
 		return
 	end
@@ -443,7 +443,7 @@ Tabs.keys = function()
 	return { sections = {
 		{ "General", function(p)
 			AddBinder(p, "Open menu", HT.Keys.menu)
-			AddInfo(p, "Tip: F5 also takes a screenshot in GMod. Pick another key here if that bothers you.")
+			AddInfo(p, "Keys on ability slots don't switch weapons any more. Use the mouse wheel for that.")
 		end },
 		{ "Ability slots", function(p)
 			for i = 1, HT.SLOTS do AddBinder(p, "Ability slot " .. i, HT.Keys["slot" .. i]) end
@@ -504,7 +504,7 @@ Tabs.hunter = function(sub)
 				end
 			end },
 			{ "About roles", function(p)
-				AddInfo(p, "Roles are presets made by the admin in Game > Role editor. Outside a round you can try them freely. \"Default\" uses your own setup from the Default tab.")
+				AddInfo(p, "Roles are presets made by the admin in the Role editor tab. Outside a round you can try them freely. \"Default\" uses your own setup from the Default tab.")
 			end },
 		} }
 	elseif sub == "default" then
@@ -534,15 +534,18 @@ Tabs.victim = function()
 	return { sections = {
 		{ "Abilities", function(p)
 			for _, def in ipairs(HT.VictimAbilities) do
-				if def.kind == "active" then
+				if def.slot then
 					local enabled = def.allow:GetBool()
 					local row = Row(p, "[" .. HT.KeyName(HT.Keys["slot" .. def.slot]:GetInt()) .. "]  " .. def.name .. (enabled and "" or "  (disabled)"), 28)
 					if enabled and HT.IsVictim(LP()) then
 						local b = row:Add("DButton")
 						b:Dock(RIGHT)
 						b:SetWide(90)
-						b:SetText("Use")
-						b.DoClick = function() HT.UseAbility(def.id) menuFrame:Remove() end
+						b:SetText(def.kind == "toggle" and (HT.IsOn(LP(), def.id) and "Turn off" or "Turn on") or "Use")
+						b.DoClick = function()
+							HT.UseAbility(def.id)
+							if def.kind == "toggle" then Refresh(0) else menuFrame:Remove() end
+						end
 					end
 					AddInfo(p, def.desc)
 				end
@@ -554,7 +557,6 @@ Tabs.victim = function()
 					AddInfo(p, def.name .. (def.allow:GetBool() and "" or " (disabled)") .. " — " .. def.desc, def.allow:GetBool() and C.good or C.faint)
 				end
 			end
-			if CV.victimHeart:GetBool() then AddInfo(p, "Heartbeat — you hear your heart beat faster when a hunter is near.", C.good) end
 		end },
 		{ "Sanity & stamina", function(p)
 			if CV.sanityEnabled:GetBool() then
@@ -694,7 +696,7 @@ Tabs.server = function()
 			ServerSlider(p, "Mimic: max duration (s)", CV.mimicTime)
 			ServerSlider(p, "Mimic: cooldown (s)", CV.mimicCooldown)
 			ServerSlider(p, "Night vision: light radius", CV.nvRadius)
-			AddInfo(p, "Which abilities a hunter has is set per role in Game > Role editor.")
+			AddInfo(p, "Which abilities a hunter has is set per role in the Role editor tab.")
 		end },
 		{ "Victim abilities", function(p)
 			ServerCheck(p, "Flashlight blind", CV.allowFlash)
@@ -744,7 +746,7 @@ local PHASE_TEXT = { lobby = "No round running.", prep = "Hiding phase running."
 
 Tabs.game = function()
 	local g = HT.Game
-	local roleOpts = {}
+	local roleOpts = { { "Default (own setup)", HT.DEFAULT_ROLE } }
 	for _, r in ipairs(HT.Roles) do roleOpts[#roleOpts + 1] = { r.name, r.name } end
 
 	return { sections = {
@@ -825,7 +827,7 @@ Tabs.game = function()
 				function(v) GameSet("roleMode", v) end)
 			AddCombo(p, "Fixed role", roleOpts, g.fixedRole, function(v) GameSet("fixedRole", v) end)
 			AddSlider(p, "Choice time (seconds)", 5, 60, 0, g.choiceTime, function(v) GameSet("choiceTime", math.Round(v)) end)
-			AddInfo(p, "Player choice: hunters get a window at round start. No pick in time = random role.")
+			AddInfo(p, "Player choice: hunters get a window at round start. No pick in time = Default.")
 		end },
 		{ "Series", function(p)
 			AddCombo(p, "Length", { { "Everyone is hunter once", "everyone" }, { "Fixed number of rounds", "fixed" } }, g.seriesMode,
@@ -874,6 +876,12 @@ Tabs.game = function()
 				end)
 			end
 		end },
+	} }
+end
+
+-- Role editor: own tab left of GAME
+Tabs.roles = function()
+	return { sections = {
 		{ "Role editor", function(p)
 			local role = (editingRole ~= "__new") and (HT.FindRole(editingRole or "") or HT.Roles[1]) or nil
 			local edit = {
@@ -944,6 +952,9 @@ Tabs.game = function()
 				end)
 			end
 			AddInfo(p, "Each slot can hold one ability. Toggle abilities can also be passive (always on). Roles are saved on the server.")
+		end },
+		{ "Default role", function(p)
+			AddInfo(p, "\"Default\" is not in this list: it is every hunter's own setup (Hunter > Default). New players start with Chaser Pulse 1, Roar 2, Stalk 3, Night Vision 4, Heartbeat Sensor in the menu and Footprints passive.")
 		end },
 	} }
 end
@@ -1094,9 +1105,11 @@ Tabs.dev = function()
 		{ "Experimental", function(p)
 			AddInfo(p, "These depend on the map or are only meant for testing.")
 			ServerCheck(p, "Blackout: also switch off map lights", CV.blackoutMapLights)
-			ServerSlider(p, "Door slam: radius", CV.doorRadius)
-			ServerSlider(p, "Door slam: locked for (s)", CV.doorLockTime)
-			ServerSlider(p, "Door slam: cooldown (s)", CV.doorCooldown)
+			if HT.FeatureOn("doorslam") then
+				ServerSlider(p, "Door slam: radius", CV.doorRadius)
+				ServerSlider(p, "Door slam: locked for (s)", CV.doorLockTime)
+				ServerSlider(p, "Door slam: cooldown (s)", CV.doorCooldown)
+			end
 			if HT.FeatureOn("aim") then
 				AddCheck(p, "Aim assist: also NPCs / nextbots (for me)", Get(LP(), "HT_AimNPC"), function(v) HT.SendSetting(LP(), "HT_AimNPC", v) end)
 			end
@@ -1127,6 +1140,7 @@ local function VisibleTabs()
 		list[#list + 1] = { "players", "Players" }
 		list[#list + 1] = { "server", "Server" }
 		list[#list + 1] = { "game", "Game", right = true }
+		list[#list + 1] = { "roles", "Role editor", right = true } -- docked right: ends up left of GAME
 	end
 	return list
 end
@@ -1291,24 +1305,14 @@ net.Receive("HT_ChooseRole", function()
 
 	local scroll = NewScroll(f)
 	scroll:Dock(FILL)
-	AddInfo(scroll, "Pick your role for this round. If you don't pick in time, you get a random one.", C.text)
+	AddInfo(scroll, "Pick your role for this round. If you don't pick in time, you play Default.", C.text)
 
 	local function pick(name)
 		PickRole(name)
 		f:Remove()
 	end
-	for _, r in ipairs(HT.Roles) do
-		local slots, passive, menu = LoadoutSummary(r.loadout)
-		AddHeader(scroll, r.name)
-		AddInfo(scroll, slots)
-		if menu then AddInfo(scroll, "Menu: " .. menu, C.cold) end
-		AddInfo(scroll, "Passive: " .. passive, C.good)
-		local character = HT.PillPrintName(r.pill)
-		if character then AddInfo(scroll, "Character: " .. character, C.warn) end
-		AddButton(scroll, "Play as " .. r.name .. (r.pill == HT.CHOOSE_PILL and HT.PillsInstalled() and " and choose a character" or ""),
-			function() pick(r.name) end)
-	end
-	-- Default: your own setup, then pick a character with pictures
+
+	-- Default first: your own setup, then pick a character with pictures
 	local slots, passive, menu = LoadoutSummary(Get(LP(), "HT_DefLoadout"))
 	AddHeader(scroll, "Default (your own setup)")
 	AddInfo(scroll, slots)
@@ -1318,6 +1322,17 @@ net.Receive("HT_ChooseRole", function()
 		pick("") -- the server opens the character picker
 	end)
 
+	for _, r in ipairs(HT.Roles) do
+		local rSlots, rPassive, rMenu = LoadoutSummary(r.loadout)
+		AddHeader(scroll, r.name)
+		AddInfo(scroll, rSlots)
+		if rMenu then AddInfo(scroll, "Menu: " .. rMenu, C.cold) end
+		AddInfo(scroll, "Passive: " .. rPassive, C.good)
+		local character = HT.PillPrintName(r.pill)
+		if character then AddInfo(scroll, "Character: " .. character, C.warn) end
+		AddButton(scroll, "Play as " .. r.name .. (r.pill == HT.CHOOSE_PILL and HT.PillsInstalled() and " and choose a character" or ""),
+			function() pick(r.name) end)
+	end
 	AddButton(scroll, "Random role", function() pick(HT.Roles[math.random(#HT.Roles)].name) end)
 end)
 

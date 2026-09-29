@@ -113,7 +113,7 @@ HT.HunterAbilities = {
 	{ id = "teleport", name = "Teleport",         kind = "active", desc = "Teleport to the spot you are looking at." },
 	{ id = "sounds",   name = "Scary Sounds",     kind = "active", desc = "Pick a scary sound and play it somewhere." },
 	{ id = "aim",      name = "Aim Assist",       kind = "toggle", feature = "aim", desc = "Pulls your crosshair toward visible victims." },
-	{ id = "radar",    name = "Radar",            kind = "toggle", desc = "See all victims through walls." },
+	{ id = "radar",    name = "Radar",            kind = "toggle", feature = "radar", desc = "See all victims through walls." },
 	{ id = "noise",    name = "Noise Radar",      kind = "toggle", noPassive = true,
 		desc = "Sprinting, jumping and shooting victims show up as pings. You can't sprint while it is on." },
 	{ id = "tracks",   name = "Footprints",       kind = "toggle", desc = "Victims leave glowing footprints only you can see." },
@@ -125,7 +125,7 @@ HT.HunterAbilities = {
 	{ id = "trap",     name = "Trap",             kind = "active", desc = "Place a trap where you look. It holds a victim and rattles loudly." },
 	{ id = "mark",     name = "Mark",             kind = "active", desc = "Aim at a victim to keep them visible for a few seconds." },
 	{ id = "mimic",    name = "Mimic",            kind = "active", desc = "Look like one of the victims until you attack." },
-	{ id = "doorslam", name = "Door Slam",        kind = "active", desc = "Slam and lock doors nearby for a moment (depends on the map)." },
+	{ id = "doorslam", name = "Door Slam",        kind = "active", feature = "doorslam", desc = "Slam and lock doors nearby for a moment (depends on the map)." },
 	{ id = "nightvision", name = "Night Vision",  kind = "toggle", desc = "Grainy green vision that lights up a small area around you." },
 }
 
@@ -140,16 +140,23 @@ HT.VictimAbilities = {
 		desc = "Short speed boost after the hunter hits you." },
 	{ id = "hide",       name = "Hiding Bonus",     kind = "passive", allow = CV.allowHide,
 		desc = "Crouch still for a while to vanish from radar and chaser pulse." },
+	{ id = "vheart",     name = "Heartbeat",        kind = "toggle",  slot = 4, allow = CV.victimHeart,
+		desc = "Hear your heart beat faster when a hunter is near. Switch it on or off." },
 }
 
 -- Features that are hidden by default and can be switched on in the developer menu (Game setting "features")
 HT.HideableFeatures = {
-	{ id = "aim", name = "Aim Assist", desc = "Hunter ability, its personal settings and the server limits." },
+	{ id = "aim",      name = "Aim Assist", default = false, desc = "Hunter ability, its personal settings and the server limits." },
+	{ id = "radar",    name = "Radar",      default = false, desc = "Hunter ability: all victims through walls." },
+	{ id = "doorslam", name = "Door Slam",  default = true,  desc = "Hunter ability: slam and lock doors (depends on the map)." },
 }
+HT.FeatureByID = {}
+for _, feat in ipairs(HT.HideableFeatures) do HT.FeatureByID[feat.id] = feat end
 
 function HT.FeatureOn(id)
 	local f = HT.Game and HT.Game.features
-	return istable(f) and f[id] == true
+	if istable(f) and f[id] ~= nil then return f[id] == true end
+	return HT.FeatureByID[id] ~= nil and HT.FeatureByID[id].default
 end
 
 -- A hunter ability whose feature is switched off: not shown anywhere and doesn't work
@@ -183,7 +190,8 @@ HT.SLOTS = 4
 -- Toggles with noPassive can't be "p": a saved "p" becomes menu only
 ------------------------------------------------------------------------
 
-HT.DEFAULT_LOADOUT = "chaser=1;roar=2;teleport=3;sounds=4"
+HT.DEFAULT_LOADOUT = "chaser=1;roar=2;stalk=3;nightvision=4;heart=m;tracks=p"
+HT.DEFAULT_ROLE = "Default" -- the player's own setup (Hunter > Default)
 
 function HT.ParseLoadout(str)
 	local lo = { slots = {}, state = {}, menu = {} }
@@ -220,7 +228,10 @@ end
 local loadoutCache = {}
 function HT.Loadout(ply)
 	local s = ply:GetNWString("HT_Loadout", "")
-	local key = s .. (HT.FeatureOn("aim") and "|aim" or "") -- hidden abilities change the result
+	local key = s -- hidden abilities change the result
+	for _, feat in ipairs(HT.HideableFeatures) do
+		if HT.FeatureOn(feat.id) then key = key .. "|" .. feat.id end
+	end
 	local lo = loadoutCache[key]
 	if not lo then
 		lo = HT.ParseLoadout(s)
@@ -237,18 +248,19 @@ HT.DefaultRoles = {
 	{ name = "Stalker", loadout = "behind=1;sounds=2;teleport=3;roar=4;stalk=m;tracks=p;heart=p" },
 	{ name = "Tracker", loadout = "chaser=1;roar=2;noise=3;sounds=4;stalk=m;tracks=p" },
 	{ name = "Brute",   loadout = "roar=1;teleport=2;jump=3;chaser=4;heart=p" },
-	{ name = "Seer",    loadout = "radar=1;chaser=2;jump=3;sounds=4;stalk=m;heart=p" },
+	{ name = "Seer",    loadout = "mark=1;chaser=2;jump=3;sounds=4;stalk=m;heart=p" },
 	{ name = "Phantom", loadout = "mimic=1;blackout=2;trap=3;doorslam=4;mark=m;nightvision=p;heart=p" },
 }
 
 HT.GameDefaults = {
+	version      = 2,            -- raised when saved game settings need a one-time update
 	roundTime    = 480,          -- seconds victims must survive
 	prepEnabled  = true,
 	prepTime     = 30,           -- hiding phase, hunter frozen and blind
 	hunterCount  = 1,
 	hunterSelect = "random",     -- random | preselected
-	roleMode     = "choice",     -- fixed | choice | random
-	fixedRole    = "Stalker",
+	roleMode     = "fixed",      -- fixed | choice | random
+	fixedRole    = "Default",    -- "Default" = every hunter's own setup
 	choiceTime   = 15,
 	hunterWeapon = "weapon_crowbar",
 	victimWeapons = "",          -- start weapons for victims, comma separated classes
@@ -416,6 +428,10 @@ end
 
 -- Toggle abilities: passive = always on, on a slot or in the menu = switched on/off
 function HT.IsOn(ply, id)
+	local def = HT.AbilityByID[id]
+	if def and not def.hunter then -- victim toggles live on the client
+		return HT.VictimToggleOn ~= nil and HT.VictimToggleOn(ply, id)
+	end
 	if not HT.HunterCanAct(ply) then return false end
 	local st = HT.Loadout(ply).state[id]
 	if st == "p" then return true end
