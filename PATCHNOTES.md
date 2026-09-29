@@ -29,3 +29,5 @@
   - **Sounds:** jeder Sound von PULSE nach Gruppen zum Anhören, eigene Dateien mit ★.
 - **Aim Assist standardmäßig ausgeblendet:** nicht mehr im Server-Tab, Role editor, Hunter-Menü, Default-Einstellungen und HUD, und ohne Funktion, bis er im Entwickler-Menü eingeschaltet wird.
 - Rolle Brute: Slot 4 ist jetzt Chaser Pulse statt Aim Assist.
+- Aus Players- und Hunter-Tab ins Entwickler-Menü umgezogen: **„Make hunter now“** (Spieler sofort zum Jäger machen).
+- Neuer Abschnitt **Experimental** im Entwickler-Menü: Blackout-Map-Lichter, Door-Slam-Werte, Aim Assist auf NPCs.

@@ -22,10 +22,10 @@ Deine Freunde laden den Client-Teil beim Joinen automatisch herunter.
 | **Keybinds** | alle | Menü-Taste und die 4 Fähigkeiten-Slots belegen |
 | **Hunter** | Jäger, Admin | Außerhalb der Runde: **Abilities** (ausführen, inkl. Menü-Fähigkeiten), **Roles** (Rolle wählen), **Default** (eigene Einstellungen und Slots). In der Runde nur die ausführbaren Fähigkeiten |
 | **Victim** | alle | Fähigkeiten der Opfer |
-| **Players** | Admin | Jäger setzen (zum Testen), „Next round“ für vorausgewählte Jäger, Zahnrad = Default-Einstellungen des Spielers |
+| **Players** | Admin | „Next round“ für vorausgewählte Jäger, Zahnrad = Default-Einstellungen des Spielers |
 | **Server** | Admin | Werte aller Fähigkeiten (Reichweite, Dauer, Abklingzeit …) |
 | **Game** | Admin | Runde oder **Serie** starten/stoppen, Überlebenszeit, Versteckphase, Jäger-Anzahl und -Auswahl, Rollenvergabe, **Final phase & music**, **Items**, **Victim weapons**, **Role editor** |
-| **Developer** | Admin | Versteckt: **Shift + Rechtsklick auf SERVER**. Ausgeblendete Funktionen (z. B. Aim Assist), Testmodus, alle Sounds zum Anhören |
+| **Developer** | Admin | Versteckt: **Shift + Rechtsklick auf SERVER**. Ausgeblendete Funktionen (z. B. Aim Assist), Testmodus, Spieler sofort zum Jäger machen, Experimentelles, alle Sounds zum Anhören |
 
 Links in jedem Tab ist eine Abschnittsliste; ein Klick springt direkt zum Abschnitt.
 
@@ -188,6 +188,8 @@ Nach jeder Runde zeigt das Ergebnisfenster den Zwischenstand, nach der letzten R
 Als Admin **Shift + Rechtsklick auf den Tab SERVER**:
 - **Hidden features:** standardmäßig ausgeblendete Funktionen einschalten (zurzeit Aim Assist). Ausgeblendet = nirgends sichtbar (Server-Tab, Role editor, Hunter-Menü, HUD) und ohne Funktion.
 - **Test mode** (siehe unten)
+- **Make hunter now:** Spieler außerhalb einer Runde sofort zum Jäger machen (zum Ausprobieren der Fähigkeiten)
+- **Experimental:** Blackout schaltet Map-Lichter aus, Door-Slam-Werte, Aim Assist auch auf NPCs (nur wenn Aim Assist eingeschaltet ist)
 - **Sounds:** jeden Sound von PULSE nach Gruppen einzeln abspielen, eigene Dateien sind mit ★ markiert.
 
 ## Testmodus

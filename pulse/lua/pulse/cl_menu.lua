@@ -345,7 +345,6 @@ local function DefaultSections(target)
 		end },
 		HT.FeatureOn("aim") and { "Aim Assist", function(p)
 			AddCheck(p, "Only while shooting / aiming", Get(target, "HT_AimOnFire"), function(v) HT.SendSetting(target, "HT_AimOnFire", v) end)
-			AddCheck(p, "Also NPCs / nextbots (good for testing)", Get(target, "HT_AimNPC"), function(v) HT.SendSetting(target, "HT_AimNPC", v) end)
 			AddSlider(p, "Strength", 0, CV.aimMaxStrength:GetFloat(), 2, Get(target, "HT_AimStrength"), function(v) HT.SendSetting(target, "HT_AimStrength", v) end)
 			AddSlider(p, "Angle (degrees)", 1, CV.aimMaxFov:GetFloat(), 0, Get(target, "HT_AimFov"), function(v) HT.SendSetting(target, "HT_AimFov", v) end)
 		end },
@@ -516,10 +515,8 @@ Tabs.hunter = function(sub)
 		{ "Hunter status", function(p)
 			if HT.IsHunter(me) then
 				AddInfo(p, "You are a hunter. Role: " .. me:GetNWString("HT_RoleName", "Default"), C.text)
-				if manager then AddButton(p, "Stop being a hunter", function() SetHunterOnServer(me, false) Refresh() end) end
 			else
-				AddInfo(p, "You are not a hunter right now.")
-				if manager then AddButton(p, "Make me a hunter", function() SetHunterOnServer(me, true) Refresh() end) end
+				AddInfo(p, "You are not a hunter right now." .. (manager and " (Testing: Developer menu > Test mode.)" or ""))
 			end
 		end },
 		{ "Abilities", function(p)
@@ -645,19 +642,10 @@ Tabs.players = function()
 					l:SetWide(90)
 					l:SetText(HT.IsHunter(ply) and "Hunter" or "Victim")
 					l:SetTextColor(HT.IsHunter(ply) and C.accent or C.muted)
-				else
-					local hunter = row:Add("DCheckBoxLabel")
-					hunter:Dock(RIGHT)
-					hunter:SetWide(90)
-					hunter:SetText("Hunter")
-					hunter:SetTextColor(C.text)
-					hunter:SetValue(HT.IsHunter(ply))
-					hunter.OnChange = function(_, v) SetHunterOnServer(ply, v) Refresh() end
 				end
 			end
 		end },
 		{ "Notes", function(p)
-			AddInfo(p, "Hunter: make someone a hunter right now (outside of rounds, for testing).")
 			AddInfo(p, "Next round: hunters for the next round when Game > Hunter selection is set to \"Preselected\".")
 			AddInfo(p, "Gear: change that player's Default hunter settings.")
 			AddInfo(p, "Admin: gives PULSE admin rights (Players, Server and Game tabs, start rounds, edit roles). Not GMod superadmin rights. Only the host or a superadmin can change this. Saved on the server.")
@@ -698,7 +686,6 @@ Tabs.server = function()
 			ServerSlider(p, "Blackout: radius", CV.blackoutRadius)
 			ServerSlider(p, "Blackout: duration (s)", CV.blackoutTime)
 			ServerSlider(p, "Blackout: cooldown (s)", CV.blackoutCooldown)
-			ServerCheck(p, "Blackout: also switch off map lights (experimental, depends on the map)", CV.blackoutMapLights)
 			ServerSlider(p, "Trap: max traps per hunter", CV.trapMax)
 			ServerSlider(p, "Trap: hold time (s)", CV.trapTime, 1)
 			ServerSlider(p, "Trap: cooldown (s)", CV.trapCooldown)
@@ -707,9 +694,6 @@ Tabs.server = function()
 			ServerSlider(p, "Mimic: max duration (s)", CV.mimicTime)
 			ServerSlider(p, "Mimic: cooldown (s)", CV.mimicCooldown)
 			ServerSlider(p, "Night vision: light radius", CV.nvRadius)
-			ServerSlider(p, "Door slam: radius (depends on the map)", CV.doorRadius)
-			ServerSlider(p, "Door slam: locked for (s)", CV.doorLockTime)
-			ServerSlider(p, "Door slam: cooldown (s)", CV.doorCooldown)
 			AddInfo(p, "Which abilities a hunter has is set per role in Game > Role editor.")
 		end },
 		{ "Victim abilities", function(p)
@@ -1096,6 +1080,26 @@ Tabs.dev = function()
 			AddButton(p, "Drop all items at my feet", function() RoundCmd("items") end)
 			AddButton(p, "Set my sanity to 0 (hallucinations)", function() RoundCmd("sanity0") end)
 			AddButton(p, "Set my sanity to 100", function() RoundCmd("sanity100") end)
+		end },
+		{ "Make hunter now", function(p)
+			if HT.InRound() then AddInfo(p, "Not during a round.") return end
+			AddInfo(p, "Makes a player hunter right away, without a round (to try abilities).")
+			for _, ply in ipairs(player.GetAll()) do
+				AddCheck(p, ply:Nick() .. (ply == LP() and "  (you)" or ""), HT.IsHunter(ply), function(v)
+					SetHunterOnServer(ply, v)
+					Refresh()
+				end)
+			end
+		end },
+		{ "Experimental", function(p)
+			AddInfo(p, "These depend on the map or are only meant for testing.")
+			ServerCheck(p, "Blackout: also switch off map lights", CV.blackoutMapLights)
+			ServerSlider(p, "Door slam: radius", CV.doorRadius)
+			ServerSlider(p, "Door slam: locked for (s)", CV.doorLockTime)
+			ServerSlider(p, "Door slam: cooldown (s)", CV.doorCooldown)
+			if HT.FeatureOn("aim") then
+				AddCheck(p, "Aim assist: also NPCs / nextbots (for me)", Get(LP(), "HT_AimNPC"), function(v) HT.SendSetting(LP(), "HT_AimNPC", v) end)
+			end
 		end },
 	}
 	for _, group in ipairs(SOUND_GROUPS) do
