@@ -119,10 +119,37 @@ local function Row(parent, label, tall)
 	return row, lbl
 end
 
-local function AddCheck(parent, label, value, onChange)
-	local c = parent:Add("DCheckBoxLabel")
-	c:Dock(TOP)
-	c:DockMargin(0, 3, 0, 7)
+-- Small "Reset" button on the right of a setting (back to the default value).
+-- The helpers below take the default as last argument; setting the control's value runs its onChange.
+local function ResetButton(parent, onReset)
+	local b = parent:Add("DButton")
+	b:Dock(RIGHT)
+	b:DockMargin(8, 2, 0, 2)
+	b:SetWide(52)
+	b:SetText("Reset")
+	b:SetTooltip("Back to the default value")
+	b.DoClick = onReset
+	return b
+end
+
+local function AddCheck(parent, label, value, onChange, default)
+	local holder, c = parent, nil
+	if default ~= nil then
+		holder = parent:Add("DPanel")
+		holder:Dock(TOP)
+		holder:DockMargin(0, 0, 0, 2)
+		holder:SetTall(24)
+		holder:SetPaintBackground(false)
+		ResetButton(holder, function() c:SetValue(default) end)
+	end
+	c = holder:Add("DCheckBoxLabel")
+	if default ~= nil then
+		c:Dock(FILL)
+		c:DockMargin(0, 4, 0, 4)
+	else
+		c:Dock(TOP)
+		c:DockMargin(0, 3, 0, 7)
+	end
 	c:SetText(label)
 	c:SetTextColor(C.text)
 	c:SetValue(value)
@@ -130,10 +157,11 @@ local function AddCheck(parent, label, value, onChange)
 	return c
 end
 
-local function AddSlider(parent, label, min, max, decimals, value, onChange)
+local function AddSlider(parent, label, min, max, decimals, value, onChange, default)
 	local s = parent:Add("DNumSlider")
 	s:Dock(TOP)
 	s:DockMargin(0, 0, 0, 4)
+	if default ~= nil then ResetButton(s, function() s:SetValue(default) end) end
 	s:SetText(label)
 	s:SetMinMax(min, max)
 	s:SetDecimals(decimals)
@@ -144,9 +172,17 @@ local function AddSlider(parent, label, min, max, decimals, value, onChange)
 end
 
 -- options = { { "Text", data }, ... }
-local function AddCombo(parent, label, options, selected, onSelect)
+local function AddCombo(parent, label, options, selected, onSelect, default)
 	local row = Row(parent, label)
-	local cb = row:Add("DComboBox")
+	local cb
+	if default ~= nil then
+		ResetButton(row, function()
+			for i, o in ipairs(options) do
+				if o[2] == default then cb:ChooseOptionID(i) end
+			end
+		end)
+	end
+	cb = row:Add("DComboBox")
 	cb:Dock(FILL)
 	for _, o in ipairs(options) do cb:AddChoice(o[1], o[2], o[2] == selected) end
 	cb.OnSelect = function(_, _, _, data) onSelect(data) end
@@ -193,6 +229,17 @@ local function BuildSections(body, sections)
 	for i = 1, table.maxn(sections) do
 		local sec = sections[i]
 		if istable(sec) then
+			-- line between sections
+			if content:GetCanvas():ChildCount() > 0 then
+				local line = content:Add("DPanel")
+				line:Dock(TOP)
+				line:DockMargin(0, 14, 0, 0)
+				line:SetTall(1)
+				line.Paint = function(_, w, h)
+					surface.SetDrawColor(C.line)
+					surface.DrawRect(0, 0, w, h)
+				end
+			end
 			local header = AddHeader(content, sec[1])
 			sec[2](content)
 
@@ -316,12 +363,13 @@ local function SetServerCVar(cvar, value)
 end
 
 local function ServerCheck(parent, label, cvar)
-	return AddCheck(parent, label, cvar:GetBool(), function(v) SetServerCVar(cvar, v and 1 or 0) end)
+	return AddCheck(parent, label, cvar:GetBool(), function(v) SetServerCVar(cvar, v and 1 or 0) end,
+		(tonumber(cvar:GetDefault()) or 0) ~= 0)
 end
 
 local function ServerSlider(parent, label, cvar, decimals)
 	return AddSlider(parent, label, cvar:GetMin() or 0, cvar:GetMax() or 100, decimals or 0, cvar:GetFloat(),
-		function(v) SetServerCVar(cvar, v) end)
+		function(v) SetServerCVar(cvar, v) end, tonumber(cvar:GetDefault()))
 end
 
 local function Refresh(delay)
@@ -597,17 +645,22 @@ Tabs.players = function()
 				gear:SetTooltip("Default hunter settings of " .. ply:Nick())
 				gear.DoClick = function() OpenPlayerSettings(ply) end
 
-				-- PULSE admin rights: only the host / superadmins can change them
+				-- PULSE admin rights: only the host / superadmins can change them.
+				-- Always a column of the same width, with space to "Next round".
+				local rights = row:Add("DPanel")
+				rights:Dock(RIGHT)
+				rights:DockMargin(20, 0, 0, 0)
+				rights:SetWide(80)
+				rights:SetPaintBackground(false)
 				if HT.IsOwner(ply) then
-					local l = row:Add("DLabel")
-					l:Dock(RIGHT)
-					l:SetWide(80)
+					local l = rights:Add("DLabel")
+					l:Dock(FILL)
 					l:SetText("Owner")
 					l:SetTextColor(C.warn)
 				elseif HT.IsOwner(LP()) then
-					local adm = row:Add("DCheckBoxLabel")
-					adm:Dock(RIGHT)
-					adm:SetWide(80)
+					local adm = rights:Add("DCheckBoxLabel")
+					adm:Dock(FILL)
+					adm:DockMargin(0, 5, 0, 0)
 					adm:SetText("Admin")
 					adm:SetTextColor(C.text)
 					adm:SetValue(ply:GetNWBool("HT_Admin", false))
@@ -618,16 +671,16 @@ Tabs.players = function()
 						net.SendToServer()
 					end
 				elseif ply:GetNWBool("HT_Admin", false) then
-					local l = row:Add("DLabel")
-					l:Dock(RIGHT)
-					l:SetWide(80)
+					local l = rights:Add("DLabel")
+					l:Dock(FILL)
 					l:SetText("Admin")
 					l:SetTextColor(C.cold)
 				end
 
 				local pre = row:Add("DCheckBoxLabel")
 				pre:Dock(RIGHT)
-				pre:SetWide(110)
+				pre:DockMargin(20, 5, 0, 0)
+				pre:SetWide(100)
 				pre:SetText("Next round")
 				pre:SetTextColor(C.text)
 				pre:SetValue(ply:GetNWBool("HT_Preselected", false))
@@ -641,7 +694,8 @@ Tabs.players = function()
 				if inRound then
 					local l = row:Add("DLabel")
 					l:Dock(RIGHT)
-					l:SetWide(90)
+					l:DockMargin(20, 0, 0, 0)
+					l:SetWide(70)
 					l:SetText(HT.IsHunter(ply) and "Hunter" or "Victim")
 					l:SetTextColor(HT.IsHunter(ply) and C.accent or C.muted)
 				end
@@ -745,9 +799,20 @@ end
 local PHASE_TEXT = { lobby = "No round running.", prep = "Hiding phase running.", hunt = "Hunt running." }
 
 Tabs.game = function()
-	local g = HT.Game
+	local g, d = HT.Game, HT.GameDefaults
 	local roleOpts = { { "Default (own setup)", HT.DEFAULT_ROLE } }
 	for _, r in ipairs(HT.Roles) do roleOpts[#roleOpts + 1] = { r.name, r.name } end
+
+	-- settings with a reset button: last argument = default value
+	local function Check(p, label, key)
+		AddCheck(p, label, g[key], function(v) GameSet(key, v) end, d[key])
+	end
+	local function Slider(p, label, min, max, decimals, key)
+		AddSlider(p, label, min, max, decimals, g[key], function(v) GameSet(key, decimals == 0 and math.Round(v) or v) end, d[key])
+	end
+	local function Combo(p, label, options, key)
+		AddCombo(p, label, options, g[key], function(v) GameSet(key, v) end, d[key])
+	end
 
 	return { sections = {
 		{ "Round", function(p)
@@ -765,13 +830,25 @@ Tabs.game = function()
 					menuFrame:Remove()
 				end)
 			end
-			AddSlider(p, "Survival time (minutes)", 1, 60, 1, g.roundTime / 60, function(v) GameSet("roundTime", math.Round(v * 60)) end)
-			AddCheck(p, "Hiding phase before the hunt", g.prepEnabled, function(v) GameSet("prepEnabled", v) end)
-			AddSlider(p, "Hiding phase (seconds)", 5, 120, 0, g.prepTime, function(v) GameSet("prepTime", math.Round(v)) end)
+			AddSlider(p, "Survival time (minutes)", 1, 60, 1, g.roundTime / 60, function(v) GameSet("roundTime", math.Round(v * 60)) end, d.roundTime / 60)
+			Check(p, "Hiding phase before the hunt", "prepEnabled")
+			Slider(p, "Hiding phase (seconds)", 5, 120, 0, "prepTime")
 			local weapons = {}
 			for _, w in ipairs(HT.HunterWeapons) do weapons[#weapons + 1] = { w[2], w[1] } end
-			AddCombo(p, "Hunter weapon", weapons, g.hunterWeapon, function(v) GameSet("hunterWeapon", v) end)
+			Combo(p, "Hunter weapon", weapons, "hunterWeapon")
 			AddInfo(p, "Building, noclip and spawning are off during a round. Changes apply to the next round.")
+		end },
+		{ "Game Series", function(p)
+			Combo(p, "Length", { { "Everyone is hunter once", "everyone" }, { "Fixed number of rounds", "fixed" } }, "seriesMode")
+			Slider(p, "Rounds (fixed)", 1, 20, 0, "seriesRounds")
+			Slider(p, "Pause between rounds (s)", 5, 120, 0, "seriesDelay")
+			AddInfo(p, "Points: victim survives +3, +1 per full minute alive. Hunter +2 per catch, +3 for a win. The player who was hunter least often becomes the next hunter.")
+			if not HT.InRound() and not (HT.SeriesInfo and HT.SeriesInfo.active) then
+				AddButton(p, "Start series", function()
+					RoundCmd("series")
+					menuFrame:Remove()
+				end)
+			end
 		end },
 		{ "Victim weapons", function(p)
 			-- ticked known weapons + extra classes typed in, saved as one comma list
@@ -794,10 +871,16 @@ Tabs.game = function()
 				AddCheck(p, w[2] .. "  (" .. w[1] .. ")", ticked[w[1]] == true, function(v)
 					ticked[w[1]] = v or nil
 					Save()
-				end)
+				end, false)
 			end
 			local row = Row(p, "Other weapons (classes, comma separated)", 28)
-			local te = row:Add("DTextEntry")
+			local te
+			ResetButton(row, function()
+				te:SetText("")
+				extra = {}
+				Save()
+			end)
+			te = row:Add("DTextEntry")
 			te:Dock(FILL)
 			te:SetText(table.concat(extra, ", "))
 			te:SetPlaceholderText("e.g. weapon_rpg, m9k_glock")
@@ -813,50 +896,20 @@ Tabs.game = function()
 				Apply()
 				DTextEntry.OnLoseFocus(self)
 			end
-			AddCheck(p, "Victims can hurt the hunter with their weapons", g.victimDamage, function(v) GameSet("victimDamage", v) end)
-			AddInfo(p, "Off: weapons only work against NPCs, props and doors. Victims never hurt each other.")
+			Check(p, "Victims can hurt the hunter with their weapons", "victimDamage")
+			Check(p, "Friendly fire (victims can hurt each other)", "victimFriendlyFire")
+			AddInfo(p, "Both off: weapons only work against NPCs, props and doors.")
 		end },
 		{ "Hunters", function(p)
-			AddSlider(p, "Number of hunters", 1, 8, 0, g.hunterCount, function(v) GameSet("hunterCount", math.Round(v)) end)
-			AddCombo(p, "Hunter selection", { { "Random", "random" }, { "Preselected", "preselected" } }, g.hunterSelect,
-				function(v) GameSet("hunterSelect", v) end)
+			Slider(p, "Number of hunters", 1, 8, 0, "hunterCount")
+			Combo(p, "Hunter selection", { { "Random", "random" }, { "Preselected", "preselected" } }, "hunterSelect")
 			AddInfo(p, "Preselected: tick \"Next round\" in the Players tab. Missing hunters are filled randomly.")
 		end },
 		{ "Role assignment", function(p)
-			AddCombo(p, "Mode", { { "Fixed role", "fixed" }, { "Player choice", "choice" }, { "Random", "random" } }, g.roleMode,
-				function(v) GameSet("roleMode", v) end)
-			AddCombo(p, "Fixed role", roleOpts, g.fixedRole, function(v) GameSet("fixedRole", v) end)
-			AddSlider(p, "Choice time (seconds)", 5, 60, 0, g.choiceTime, function(v) GameSet("choiceTime", math.Round(v)) end)
+			Combo(p, "Mode", { { "Fixed role", "fixed" }, { "Player choice", "choice" }, { "Random", "random" } }, "roleMode")
+			Combo(p, "Fixed role", roleOpts, "fixedRole")
+			Slider(p, "Choice time (seconds)", 5, 60, 0, "choiceTime")
 			AddInfo(p, "Player choice: hunters get a window at round start. No pick in time = Default.")
-		end },
-		{ "Series", function(p)
-			AddCombo(p, "Length", { { "Everyone is hunter once", "everyone" }, { "Fixed number of rounds", "fixed" } }, g.seriesMode,
-				function(v) GameSet("seriesMode", v) end)
-			AddSlider(p, "Rounds (fixed)", 1, 20, 0, g.seriesRounds, function(v) GameSet("seriesRounds", math.Round(v)) end)
-			AddSlider(p, "Pause between rounds (s)", 5, 120, 0, g.seriesDelay, function(v) GameSet("seriesDelay", math.Round(v)) end)
-			AddInfo(p, "Points: victim survives +3, +1 per full minute alive. Hunter +2 per catch, +3 for a win. The player who was hunter least often becomes the next hunter.")
-			if not HT.InRound() and not (HT.SeriesInfo and HT.SeriesInfo.active) then
-				AddButton(p, "Start series", function()
-					RoundCmd("series")
-					menuFrame:Remove()
-				end)
-			end
-		end },
-		{ "Final phase & music", function(p)
-			AddCheck(p, "Final phase when only one victim is left", g.finalPhase, function(v) GameSet("finalPhase", v) end)
-			AddSlider(p, "Speed boost for the last victim (s)", 0, 30, 0, g.finalBoost, function(v) GameSet("finalBoost", math.Round(v)) end)
-			AddSlider(p, "Chase music in the last seconds (0 = off)", 0, 300, 0, g.musicLast, function(v) GameSet("musicLast", math.Round(v)) end)
-			AddCheck(p, "Ambient sounds (louder over the round)", g.ambient, function(v) GameSet("ambient", v) end)
-			AddSlider(p, "Ambient volume", 0, 1, 2, g.ambientVolume, function(v) GameSet("ambientVolume", v) end)
-			AddInfo(p, "Own music: put files into addons/pulse/sound/pulse/music/ (ambient: .../ambient/, short scares: .../stingers/). Otherwise Half-Life 2 music is used.")
-		end },
-		{ "Items", function(p)
-			AddCheck(p, "Items on the map", g.items, function(v) GameSet("items", v) end)
-			AddSlider(p, "Number of items per round", 0, 40, 0, g.itemCount, function(v) GameSet("itemCount", math.Round(v)) end)
-			for _, item in ipairs(HT.Items) do
-				AddCheck(p, item.name, g[item.key], function(v) GameSet(item.key, v) end)
-			end
-			AddInfo(p, "Items are spread over the map at round start. Only victims can pick them up (walk over them). Select them with the mouse wheel, left click uses them. Maps with a navmesh give the best spots.")
 		end },
 		{ "Characters", function(p)
 			if not HT.PillsInstalled() then
@@ -873,8 +926,22 @@ Tabs.game = function()
 					hidden[pack.name] = not v
 					HT.Game.pillHidden = hidden
 					GameSet("pillHidden", hidden)
-				end)
+				end, not HT.BASE_PILL_PACKS[pack.name])
 			end
+		end },
+		{ "Final phase & music", function(p)
+			Check(p, "Final phase when only one victim is left", "finalPhase")
+			Slider(p, "Speed boost for the last victim (s)", 0, 30, 0, "finalBoost")
+			Slider(p, "Chase music in the last seconds (0 = off)", 0, 300, 0, "musicLast")
+			Check(p, "Ambient sounds (louder over the round)", "ambient")
+			Slider(p, "Ambient volume", 0, 1, 2, "ambientVolume")
+			AddInfo(p, "Own music: put files into addons/pulse/sound/pulse/music/ (ambient: .../ambient/, short scares: .../stingers/). Otherwise Half-Life 2 music is used.")
+		end },
+		{ "Items", function(p)
+			Check(p, "Items on the map", "items")
+			Slider(p, "Number of items per round", 0, 40, 0, "itemCount")
+			for _, item in ipairs(HT.Items) do Check(p, item.name, item.key) end
+			AddInfo(p, "Items are spread over the map at round start. Only victims can pick them up (walk over them). Select them with the mouse wheel, left click uses them. Maps with a navmesh give the best spots.")
 		end },
 	} }
 end
@@ -987,13 +1054,28 @@ local function PlayDevSound(path, pitch)
 	end)
 end
 
-local function SoundRow(p, label, path, pitch)
+-- toggle: optional { on, onChange } shown left of "Play"
+local function SoundRow(p, label, path, pitch, toggle)
 	local row = Row(p, label, 26)
 	local b = row:Add("DButton")
 	b:Dock(RIGHT)
 	b:SetWide(70)
 	b:SetText("Play")
 	b.DoClick = function() PlayDevSound(path, pitch) end
+	if toggle then
+		local c = row:Add("DCheckBoxLabel")
+		c:Dock(RIGHT)
+		c:DockMargin(8, 5, 8, 0)
+		c:SetWide(70)
+		c:SetText(toggle[1] and "On" or "Off")
+		c:SetTextColor(toggle[1] and C.good or C.faint)
+		c:SetValue(toggle[1])
+		c.OnChange = function(self, v)
+			self:SetText(v and "On" or "Off")
+			self:SetTextColor(v and C.good or C.faint)
+			toggle[2](v)
+		end
+	end
 	local l = row:Add("DLabel")
 	l:Dock(FILL)
 	l:DockMargin(8, 0, 8, 0)
@@ -1084,14 +1166,25 @@ Tabs.dev = function()
 		end
 	end }
 	sections[#sections + 1] = { "Sounds: Scary Sounds", function(p)
+		AddInfo(p, "Off = not in the hunter's sound list during the game.")
 		AddButton(p, "Stop sound", StopDevSound)
-		for _, e in ipairs(HT.BuiltinSounds) do SoundRow(p, e[1], e[2], 100) end
+		local function Toggle(path)
+			return { HT.ScaryEnabled(path), function(v)
+				local off = table.Copy(HT.Game.scaryOff or {})
+				off[path] = not v
+				HT.Game.scaryOff = off
+				GameSet("scaryOff", off)
+			end }
+		end
+		for _, e in ipairs(HT.BuiltinSounds) do
+			SoundRow(p, e[1] .. ((e[3] or 1) > 1 and "  (x" .. e[3] .. ")" or ""), e[2], 100, Toggle(e[2]))
+		end
 		local own = HT.SoundFolderFiles("scary")
 		table.Add(own, HT.SoundFolderFiles(""))
-		for _, path in ipairs(own) do SoundRow(p, "★ " .. string.GetFileFromFilename(path), path, 100) end
+		for _, path in ipairs(own) do SoundRow(p, "★ " .. string.GetFileFromFilename(path), path, 100, Toggle(path)) end
 		AddInfo(p, "Folder: sound/pulse/scary/ (every file becomes its own entry in the hunter's sound list)")
 	end }
-	return { sections = sections }
+	return { title = "DEVELOPER MENU", sections = sections }
 end
 
 ------------------------------------------------------------------------
@@ -1145,6 +1238,15 @@ function HT.OpenMenu(tab, sub)
 		body:Clear()
 
 		local def = Tabs[id](state.sub)
+		if def.title then
+			local title = body:Add("DLabel")
+			title:Dock(TOP)
+			title:DockMargin(14, 10, 14, 4)
+			title:SetFont("HT_Header")
+			title:SetText(def.title)
+			title:SetTextColor(C.accent)
+			title:SizeToContentsY(6)
+		end
 		if def.subs then
 			local subbar = body:Add("DPanel")
 			subbar:Dock(TOP)

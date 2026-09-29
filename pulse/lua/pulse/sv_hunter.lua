@@ -1030,7 +1030,7 @@ local function BuildSoundList()
 	soundList = {}
 	for _, entry in ipairs(HT.BuiltinSounds) do
 		if file.Exists("sound/" .. entry[2], "GAME") then
-			soundList[#soundList + 1] = { name = entry[1], path = entry[2] }
+			soundList[#soundList + 1] = { name = entry[1], path = entry[2], times = entry[3] or 1 }
 		end
 	end
 
@@ -1040,17 +1040,32 @@ local function BuildSoundList()
 	for _, path in ipairs(own) do
 		resource.AddFile("sound/" .. path) -- friends download the file when joining
 		local name = string.gsub(string.StripExtension(string.GetFileFromFilename(path)), "_", " ")
-		soundList[#soundList + 1] = { name = "★ " .. name, path = path }
+		soundList[#soundList + 1] = { name = "★ " .. name, path = path, times = 1 }
 	end
 end
 BuildSoundList()
 
+-- Only the sounds switched on in the developer menu, with their number in soundList
 local function SendSoundList(ply)
-	local count = math.min(#soundList, 255)
+	local list = {}
+	for i = 1, math.min(#soundList, 255) do
+		if HT.ScaryEnabled(soundList[i].path) then list[#list + 1] = i end
+	end
 	net.Start("HT_SoundList")
-	net.WriteUInt(count, 8)
-	for i = 1, count do net.WriteString(soundList[i].name) end
-	net.Send(ply)
+	net.WriteUInt(#list, 8)
+	for _, i in ipairs(list) do
+		net.WriteUInt(i, 8)
+		net.WriteString(soundList[i].name)
+	end
+	if ply then net.Send(ply) else net.Broadcast() end
+end
+HT.SendSoundList = SendSoundList
+
+-- Plays a scary sound (some knock several times in a row)
+local function PlayScary(entry, pos, level)
+	for n = 0, entry.times - 1 do
+		timer.Simple(n * 0.22, function() PlayScary(entry, pos, level) end)
+	end
 end
 
 hook.Add("PlayerInitialSpawn", "HT_SoundList", function(ply)
@@ -1088,7 +1103,7 @@ net.Receive("HT_SoundPlay", function(_, ply)
 
 	if not HT.HunterCanAct(ply) or not HT.HasAbility(ply, "sounds") then return end
 	local entry = soundList[index]
-	if not entry then return end
+	if not entry or not HT.ScaryEnabled(entry.path) then return end
 
 	local now = CurTime()
 	if ply:GetNWFloat("HT_Ready_sounds", 0) > now then return end
@@ -1097,12 +1112,12 @@ net.Receive("HT_SoundPlay", function(_, ply)
 	local soundPos
 	if mode == 1 then
 		soundPos = ply:EyePos()
-		sound.Play(entry.path, ply:EyePos(), level)
+		PlayScary(entry, ply:EyePos(), level)
 	elseif mode == 2 then
 		local pos = SpotNearRandomVictim(ply)
 		if not pos then ply:ChatPrint("[PULSE] No victim around.") return end
 		soundPos = pos
-		sound.Play(entry.path, pos, level)
+		PlayScary(entry, pos, level)
 	elseif mode == 3 then
 		local eye = ply:EyePos()
 		local tr = util.TraceLine({
@@ -1112,11 +1127,12 @@ net.Receive("HT_SoundPlay", function(_, ply)
 			mask = MASK_SOLID_BRUSHONLY,
 		})
 		soundPos = tr.HitPos + tr.HitNormal * 8
-		sound.Play(entry.path, soundPos, level)
+		PlayScary(entry, soundPos, level)
 	elseif mode == 4 then
 		if not CV.soundAllowGlobal:GetBool() then return end
 		net.Start("HT_SoundGlobal")
 		net.WriteString(entry.path)
+		net.WriteUInt(entry.times, 3)
 		net.Broadcast()
 		for _, v in ipairs(player.GetAll()) do HT.Scare(v, 5) end
 	else

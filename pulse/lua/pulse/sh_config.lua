@@ -153,6 +153,12 @@ HT.HideableFeatures = {
 HT.FeatureByID = {}
 for _, feat in ipairs(HT.HideableFeatures) do HT.FeatureByID[feat.id] = feat end
 
+-- Scary sound switched on in the developer menu?
+function HT.ScaryEnabled(path)
+	local off = HT.Game and HT.Game.scaryOff
+	return not (istable(off) and off[path] == true)
+end
+
 function HT.FeatureOn(id)
 	local f = HT.Game and HT.Game.features
 	if istable(f) and f[id] ~= nil then return f[id] == true end
@@ -265,6 +271,7 @@ HT.GameDefaults = {
 	hunterWeapon = "weapon_crowbar",
 	victimWeapons = "",          -- start weapons for victims, comma separated classes
 	victimDamage = false,        -- victims may hurt the hunter with their weapons
+	victimFriendlyFire = false,  -- victims may hurt each other
 
 	-- final phase and atmosphere
 	finalPhase   = true,         -- last victim standing gets a speed boost, chase music starts
@@ -287,6 +294,16 @@ HT.GameDefaults = {
 
 	-- test mode
 	botsWalk     = false,
+
+	-- scary sounds switched off in the developer menu (path = true); own files are on unless listed
+	scaryOff     = {
+		["ambient/creatures/teddy.wav"] = true,
+		["ambient/voices/f_scream1.wav"] = true,
+		["ambient/voices/m_scream1.wav"] = true,
+		["npc/stalker/breathing3.wav"] = true,
+		["ambient/levels/citadel/strange_talk3.wav"] = true,
+		["npc/zombie/zombie_voice_idle1.wav"] = true,
+	},
 
 	-- hidden features switched on in the developer menu, e.g. { aim = true }
 	features     = {},
@@ -554,5 +571,5 @@ HT.BuiltinSounds = {
 	{ "Zombie murmur",               "npc/zombie/zombie_voice_idle1.wav" },
 	{ "Dull thud",                   "ambient/atmosphere/hole_hit1.wav" },
 	{ "Rumble",                      "ambient/atmosphere/cave_hit1.wav" },
-	{ "Loud knock",                  "physics/wood/wood_crate_impact_hard3.wav" },
+	{ "Loud knock",                  "physics/wood/wood_crate_impact_hard3.wav", 3 }, -- 3 = knocks three times
 }

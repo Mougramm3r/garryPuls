@@ -248,10 +248,14 @@ end
 ------------------------------------------------------------------------
 
 HT.SoundNames = {}
+HT.SoundIndex = {} -- position in the server's list for each name
 
 net.Receive("HT_SoundList", function()
-	HT.SoundNames = {}
-	for i = 1, net.ReadUInt(8) do HT.SoundNames[i] = net.ReadString() end
+	HT.SoundNames, HT.SoundIndex = {}, {}
+	for i = 1, net.ReadUInt(8) do
+		HT.SoundIndex[i] = net.ReadUInt(8)
+		HT.SoundNames[i] = net.ReadString()
+	end
 end)
 
 function HT.RequestSoundList()
@@ -262,7 +266,10 @@ function HT.RequestSoundList()
 end
 
 net.Receive("HT_SoundGlobal", function()
-	surface.PlaySound(net.ReadString())
+	local path, times = net.ReadString(), net.ReadUInt(3)
+	for n = 0, math.max(times, 1) - 1 do
+		timer.Simple(n * 0.22, function() surface.PlaySound(path) end)
+	end
 end)
 
 function HT.PlayScarySound(index)
@@ -274,7 +281,7 @@ function HT.PlayScarySound(index)
 		return
 	end
 	net.Start("HT_SoundPlay")
-	net.WriteUInt(index, 8)
+	net.WriteUInt(HT.SoundIndex[index], 8)
 	net.WriteUInt(mode, 3)
 	net.SendToServer()
 	HT.LastUsed = "sounds"

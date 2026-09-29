@@ -60,6 +60,7 @@ local function ValidateGame(g)
 	end
 	out.victimWeapons = table.concat(HT.VictimWeaponList(g.victimWeapons), ",")
 	out.victimDamage = B(g.victimDamage, d.victimDamage)
+	out.victimFriendlyFire = B(g.victimFriendlyFire, d.victimFriendlyFire)
 	out.finalPhase = B(g.finalPhase, d.finalPhase)
 	out.finalBoost = math.Clamp(tonumber(g.finalBoost) or d.finalBoost, 0, 30)
 	out.musicLast = math.Clamp(math.floor(tonumber(g.musicLast) or d.musicLast), 0, 600)
@@ -72,6 +73,16 @@ local function ValidateGame(g)
 	out.seriesRounds = math.Clamp(math.floor(tonumber(g.seriesRounds) or d.seriesRounds), 1, 50)
 	out.seriesDelay = math.Clamp(math.floor(tonumber(g.seriesDelay) or d.seriesDelay), 5, 120)
 	out.botsWalk = B(g.botsWalk, d.botsWalk)
+	out.scaryOff = {}
+	if istable(g.scaryOff) then
+		local n = 0
+		for path, off in pairs(g.scaryOff) do
+			if isstring(path) and #path <= 128 and n < 200 then
+				out.scaryOff[path] = off == true or off == 1
+				n = n + 1
+			end
+		end
+	end
 	out.features = {}
 	for _, feat in ipairs(HT.HideableFeatures) do
 		local v
@@ -173,6 +184,7 @@ net.Receive("HT_GameSet", function(_, ply)
 	HT.Game = ValidateGame(merged)
 	Save()
 	SendData()
+	if changes.scaryOff ~= nil and HT.SendSoundList then HT.SendSoundList() end
 end)
 
 -- Admin: create or update a role
@@ -974,7 +986,7 @@ hook.Add("PlayerLoadout", "HT_Loadout", function(ply)
 	return true
 end)
 
--- Spectators can't be hurt. Victims only hurt the hunter if the admin allows it; hunters can't hurt each other.
+-- Spectators can't be hurt. Victims only hurt the hunter / each other if the admin allows it; hunters can't hurt each other.
 hook.Add("EntityTakeDamage", "HT_RoundDamage", function(target, dmg)
 	if not round or not IsValid(target) or not target:IsPlayer() then return end
 	if target:GetNWBool("HT_Spectator", false) then return true end
@@ -985,7 +997,7 @@ hook.Add("EntityTakeDamage", "HT_RoundDamage", function(target, dmg)
 		if HT.IsHunter(attacker) or not HT.Game.victimDamage then return true end
 		return
 	end
-	if not HT.IsHunter(attacker) then return true end
+	if not HT.IsHunter(attacker) and not HT.Game.victimFriendlyFire then return true end
 end)
 
 -- No sandbox building, noclip or spawning during a round

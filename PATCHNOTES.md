@@ -53,3 +53,14 @@
 - **Neue Sound-Stellen** (stumm, bis du Dateien hineinlegst): Versteckphase startet, Jagd beginnt, Finale, Opfer gefangen, Stalk, Mark (hört das Opfer), Mimic, Falle aufgestellt, Night Vision an, Noise-Radar-Ping, Adrenalin, außer Atem, Hiding Bonus, Item aufgehoben.
 - Gruselsounds gehören jetzt nach `sound/pulse/scary/` (direkt in `sound/pulse/` geht weiterhin).
 - Entwickler-Menü → Sounds zeigt alle Sounds mit ihrem Ordner, eigene Dateien mit ★.
+
+## Update: Menü-Aufräumen
+
+- Entwickler-Menü hat oben die Überschrift **„DEVELOPER MENU“**.
+- **Gruselsounds an/aus:** Entwickler-Menü → Sounds: Scary Sounds hat links neben „Play“ einen Schalter. Aus = nicht mehr in der Soundauswahl des Jägers. Standardmäßig aus: Squeaky teddy, Woman screaming, Man screaming, Heavy breathing, Strange voices 2, Zombie murmur.
+- **Loud knock** klopft jetzt 3-mal direkt hintereinander.
+- **Reset-Button** hinter jeder Einstellung in Server und Game (setzt auf den Standardwert zurück).
+- **Players-Tab:** Owner/Admin klebt nicht mehr an „Next round“, eigene Spalte mit Abstand.
+- **Victim weapons:** neue Option ganz unten **„Friendly fire“** (Opfer können sich gegenseitig verletzen, Standard: aus).
+- **Game-Tab neu sortiert:** Round → **Game Series** (umbenannt, direkt unter Round) → Victim weapons → Hunters → Role assignment → **Characters** (direkt darunter) → Final phase & music → Items.
+- **Trennlinien** zwischen den Abschnitten in allen Tabs.

@@ -52,7 +52,7 @@ Die Slot-Tasten wechseln keine Waffen mehr, Waffen und Items wählst du mit dem 
 ## Ablauf einer Runde
 
 1. Der Admin stellt im Tab **Game** alles ein und drückt **Start round**.
-2. Jäger werden bestimmt (zufällig oder vorausgewählt). Alle respawnen, Jäger bekommen ihre Waffe (Standard: Brechstange), Opfer die Startwaffen aus **Game → Victim weapons** (Standard: keine).
+2. Jäger werden bestimmt (zufällig oder vorausgewählt). Alle respawnen, Jäger bekommen ihre Waffe (Standard: Brechstange), Opfer die Startwaffen aus **Game → Victim weapons** (Standard: keine). Dort auch: Schaden am Jäger und **Friendly fire** (beides Standard aus).
    Ob Opfer dem Jäger damit Schaden machen dürfen, ist dort einstellbar (Standard: aus).
    Wird der Jäger getroffen, kann er kurz nicht sprinten (Standard 1,5 s, Server-Tab).
    Bauen, Noclip und Spawnen sind während der Runde aus.
@@ -186,7 +186,7 @@ Anhören: Entwickler-Menü → Sounds. Freunde laden eigene Dateien beim Joinen 
 
 ## Rundenserie
 
-Im Tab **Game → Series**: **Everyone is hunter once** (so viele Runden, bis jeder einmal Jäger war) oder **Fixed number of rounds**.
+Im Tab **Game → Game Series**: **Everyone is hunter once** (so viele Runden, bis jeder einmal Jäger war) oder **Fixed number of rounds**.
 Jäger wird immer, wer bisher am seltensten Jäger war. Zwischen den Runden gibt es eine Pause mit Countdown.
 
 Punkte: Opfer überlebt +3, +1 pro volle Minute am Leben. Jäger +2 pro gefangenem Opfer, +3 bei Sieg.
@@ -200,6 +200,10 @@ Als Admin **Shift + Rechtsklick auf den Tab SERVER**:
 - **Make hunter now:** Spieler außerhalb einer Runde sofort zum Jäger machen (zum Ausprobieren der Fähigkeiten)
 - **Experimental:** Blackout schaltet Map-Lichter aus, Door-Slam-Werte, Aim Assist auch auf NPCs (nur wenn Aim Assist eingeschaltet ist)
 - **Sounds:** jeden Sound von PULSE nach Gruppen einzeln abspielen, eigene Dateien sind mit ★ markiert.
+  Bei **Scary Sounds** schaltet der Schalter links neben „Play“ einen Gruselsound aus der Auswahl des Jägers
+  (standardmäßig aus: Squeaky teddy, Woman/Man screaming, Heavy breathing, Strange voices 2, Zombie murmur).
+
+In den Tabs **Server** und **Game** hat jede Einstellung rechts einen **Reset**-Button (zurück zum Standardwert).
 
 ## Testmodus
 
