@@ -78,3 +78,10 @@
   - Leertaste: freie Kamera, fliegen mit WASD, Shift = schneller, Ducken = runter.
   - Falls der Zuschauermodus nach dem Tod nicht startet, springt er jetzt spätestens nach 2,5 s von selbst an.
 - **Loadout-Addons:** neue Option unter Game → Victim weapons: **„Player's own loadout (from a loadout addon)“**. Opfer behalten dann zum Rundenstart das Loadout aus ihrem Loadout-Addon, zusätzlich zu den angehakten Startwaffen. Jäger bekommen weiterhin nur die Jäger-Waffe.
+
+## Update: Fixes Waffen & Voice
+
+- **Fix Startwaffen:** Alle Opfer bekommen jetzt ihre Startwaffen. Kurz nach dem Spawnen prüft PULSE jede Ausrüstung selbst, auch wenn ein anderes Addon (z. B. ein Loadout-Addon) PULSE beim Verteilen zuvorkommt. Jäger haben danach nur noch die Jäger-Waffe.
+- **Fix Tote werden gehört:** Die Stummschaltung toter Spieler greift jetzt doppelt:
+  - auf dem Server, auch wenn ein anderes Voice-Addon zuerst entscheidet,
+  - und zusätzlich auf jedem Client (die Lebenden schalten Tote lokal stumm, auch bei sv_alltalk). Nach der Runde oder beim Wiederbeleben wird automatisch wieder laut geschaltet; selbst stummgeschaltete Spieler bleiben stumm.

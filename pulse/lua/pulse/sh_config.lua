@@ -487,6 +487,18 @@ function HT.IsHidden(ply)
 	return (CV.allowHide:GetBool() and ply:GetNWBool("HT_Hidden", false)) or HT.IsSilent(ply)
 end
 
+-- Voice chat: dead players / spectators can't be heard by the living during a round
+function HT.IsDeadInRound(ply)
+	return HT.InRound() and (not ply:Alive() or ply:GetNWBool("HT_Spectator", false) or ply:GetObserverMode() ~= OBS_MODE_NONE)
+end
+
+function HT.VoiceBlocked(listener, talker)
+	if not HT.Game.deadMute or not IsValid(listener) or not IsValid(talker) or listener == talker then return false end
+	if not HT.IsDeadInRound(talker) then return false end
+	if HT.IsDeadInRound(listener) and HT.Game.deadTalkDead then return false end
+	return true
+end
+
 function HT.FormatTime(sec)
 	sec = math.max(0, math.floor(sec))
 	return string.format("%d:%02d", math.floor(sec / 60), sec % 60)

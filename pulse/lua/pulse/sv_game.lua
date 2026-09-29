@@ -963,17 +963,49 @@ local function GiveHunterWeapon(ply)
 	if HT.Game.hunterWeapon ~= "" and not ply.HT_Pill then ply:Give(HT.Game.hunterWeapon) end
 end
 
+-- Victim start weapons (only the ones missing), with some ammo
+local function GiveVictimWeapons(ply)
+	for _, class in ipairs(HT.VictimWeaponList(HT.Game.victimWeapons)) do
+		if not ply:HasWeapon(class) then
+			local wep = ply:Give(class)
+			if IsValid(wep) and wep:GetPrimaryAmmoType() >= 0 then
+				ply:GiveAmmo(math.max(wep:GetMaxClip1(), 1) * 3, wep:GetPrimaryAmmoType(), true)
+			end
+		end
+	end
+end
+
+-- Right after spawning: make sure everyone has exactly the round's weapons.
+-- Needed because another addon's loadout hook can answer before ours, then ours never runs for that player.
+local function EnsureRoundWeapons(ply)
+	if not round or not IsValid(ply) or not ply:Alive() then return end
+	local p = round.players[ply]
+	if not p or p.died then return end
+	if p.hunter then
+		if ply.HT_Pill then return end -- Pill Pack characters handle their own attacks
+		local want = HT.Game.hunterWeapon ~= "" and HT.Game.hunterWeapon or nil
+		for _, wep in ipairs(ply:GetWeapons()) do
+			if IsValid(wep) and wep:GetClass() ~= want then ply:StripWeapon(wep:GetClass()) end
+		end
+		if want and not ply:HasWeapon(want) then ply:Give(want) end
+		return
+	end
+	if not HT.Game.victimOwnLoadout then
+		local allowed = {}
+		for _, class in ipairs(HT.VictimWeaponList(HT.Game.victimWeapons)) do allowed[class] = true end
+		for _, wep in ipairs(ply:GetWeapons()) do
+			local class = IsValid(wep) and wep:GetClass()
+			if class and not allowed[class] and not string.StartWith(class, "pulse_item_") then ply:StripWeapon(class) end
+		end
+	end
+	GiveVictimWeapons(ply)
+end
+
 hook.Add("PlayerSpawn", "HT_Spectators", function(ply)
 	if not round then return end
 	local p = round.players[ply]
 	if p and not p.died then
-		-- another addon's loadout hook may have stopped ours: hunters still only get the hunter weapon
-		if p.hunter then
-			local spawned = CurTime()
-			timer.Simple(0.2, function()
-				if round and IsValid(ply) and (ply.HT_LoadoutDone or 0) < spawned and HT.IsHunter(ply) then GiveHunterWeapon(ply) end
-			end)
-		end
+		timer.Simple(0.3, function() EnsureRoundWeapons(ply) end)
 		return
 	end
 	timer.Simple(0, function()
@@ -1013,7 +1045,6 @@ end)
 hook.Add("PlayerLoadout", "HT_Loadout", function(ply)
 	if not round then return end
 	local p = round.players[ply]
-	ply.HT_LoadoutDone = CurTime()
 	-- victims may keep their own loadout from other addons (Game > Victim weapons)
 	local own = p and not p.hunter and not p.died and HT.Game.victimOwnLoadout
 	if not own then
@@ -1025,12 +1056,7 @@ hook.Add("PlayerLoadout", "HT_Loadout", function(ply)
 			GiveHunterWeapon(ply)
 		else
 			if own then OtherLoadouts(ply) end
-			for _, class in ipairs(HT.VictimWeaponList(HT.Game.victimWeapons)) do
-				local wep = ply:Give(class)
-				if IsValid(wep) and wep:GetPrimaryAmmoType() >= 0 then
-					ply:GiveAmmo(math.max(wep:GetMaxClip1(), 1) * 3, wep:GetPrimaryAmmoType(), true)
-				end
-			end
+			GiveVictimWeapons(ply)
 		end
 	end
 	return true
@@ -1074,13 +1100,23 @@ end)
 
 -- Voice chat: dead players and spectators can't talk to the living during a round, but still hear everyone.
 -- Works with the normal GMod voice chat and addons that only switch the microphone on (e.g. VoiceActivity).
-local function IsDeadInRound(ply)
-	return not ply:Alive() or ply:GetNWBool("HT_Spectator", false) or ply:GetObserverMode() ~= OBS_MODE_NONE
-end
-
 hook.Add("PlayerCanHearPlayersVoice", "HT_DeadVoice", function(listener, talker)
-	if not round or not HT.Game.deadMute or listener == talker then return end
-	if not IsValid(talker) or not IsDeadInRound(talker) then return end
-	if IsDeadInRound(listener) and HT.Game.deadTalkDead then return end
-	return false, false
+	if round and HT.VoiceBlocked(listener, talker) then return false, false end
 end)
+
+-- Another addon's voice hook can answer before ours (then ours never runs). Let theirs ask us first.
+local wrappedVoice = setmetatable({}, { __mode = "k" })
+local function WrapVoiceHooks()
+	for name, fn in pairs(hook.GetTable().PlayerCanHearPlayersVoice or {}) do
+		if name ~= "HT_DeadVoice" and isfunction(fn) and not wrappedVoice[fn] then
+			local wrapper = function(listener, talker, ...)
+				if round and HT.VoiceBlocked(listener, talker) then return false, false end
+				return fn(listener, talker, ...)
+			end
+			wrappedVoice[wrapper] = true
+			hook.Add("PlayerCanHearPlayersVoice", name, wrapper)
+		end
+	end
+end
+hook.Add("InitPostEntity", "HT_WrapVoice", WrapVoiceHooks)
+timer.Create("HT_WrapVoice", 10, 0, WrapVoiceHooks)

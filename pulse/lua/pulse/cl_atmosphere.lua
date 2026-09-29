@@ -364,3 +364,37 @@ hook.Add("HUDPaint", "HT_SpectatorHUD", function()
 		draw.SimpleTextOutlined(text2, "HT_Row", ScrW() / 2, ScrH() - 24, C.accent, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, color_black)
 	end
 end)
+
+------------------------------------------------------------------------
+-- Voice chat: also mute dead players on this client (works even when another addon
+-- or sv_alltalk decides on the server who hears whom). Only players we muted get unmuted again.
+------------------------------------------------------------------------
+
+local autoMuted = {} -- SteamID64 -> true
+for id in string.gmatch(cookie.GetString("pulse_automuted", ""), "[^,]+") do autoMuted[id] = true end
+
+local function SaveAutoMuted()
+	cookie.Set("pulse_automuted", table.concat(table.GetKeys(autoMuted), ","))
+end
+
+timer.Create("HT_DeadVoiceClient", 0.5, 0, function()
+	local me = LP()
+	if not me then return end
+	local changed = false
+	for _, ply in ipairs(player.GetAll()) do
+		if ply ~= me and not ply:IsBot() then
+			local id = ply:SteamID64() or ""
+			local block = HT.VoiceBlocked(me, ply)
+			if block and not ply:IsMuted() then
+				ply:SetMuted(true)
+				autoMuted[id] = true
+				changed = true
+			elseif not block and autoMuted[id] then
+				if ply:IsMuted() then ply:SetMuted(false) end
+				autoMuted[id] = nil
+				changed = true
+			end
+		end
+	end
+	if changed then SaveAutoMuted() end
+end)
