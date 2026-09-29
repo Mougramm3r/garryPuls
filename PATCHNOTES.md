@@ -20,3 +20,12 @@
 - **Jäger getroffen:** Schaden unterbricht den Sprint des Jägers, er kann 1,5 s nur gehen (einstellbar unter Server → „Hunter hit: no sprint for“, 0 = aus). Gilt auch für Pill-Charaktere.
 - **Eigene Behind-You-Sounds:** neue Ordner `sound/pulse/behindu/behind/` (während der Jäger hinter dem Opfer steht) und `sound/pulse/behindu/turn/` (wenn sich das Opfer umdreht). Mehrere Dateien = zufällige Auswahl, der nächste Sound startet erst nach dem vorigen.
 - Eigene Musik/Ambient/Stinger werden jetzt auch an Freunde übertragen (vorher hörte sie nur der Host).
+
+## Update: Entwickler-Menü
+
+- **Entwickler-Menü:** als Admin mit **Shift + Rechtsklick auf den Tab SERVER**.
+  - **Hidden features:** standardmäßig ausgeblendete Funktionen wieder einschalten.
+  - **Test mode** ist aus dem Game-Tab hierher umgezogen.
+  - **Sounds:** jeder Sound von PULSE nach Gruppen zum Anhören, eigene Dateien mit ★.
+- **Aim Assist standardmäßig ausgeblendet:** nicht mehr im Server-Tab, Role editor, Hunter-Menü, Default-Einstellungen und HUD, und ohne Funktion, bis er im Entwickler-Menü eingeschaltet wird.
+- Rolle Brute: Slot 4 ist jetzt Chaser Pulse statt Aim Assist.

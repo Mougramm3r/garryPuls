@@ -72,6 +72,10 @@ local function ValidateGame(g)
 	out.seriesRounds = math.Clamp(math.floor(tonumber(g.seriesRounds) or d.seriesRounds), 1, 50)
 	out.seriesDelay = math.Clamp(math.floor(tonumber(g.seriesDelay) or d.seriesDelay), 5, 120)
 	out.botsWalk = B(g.botsWalk, d.botsWalk)
+	out.features = {}
+	for _, feat in ipairs(HT.HideableFeatures) do
+		out.features[feat.id] = istable(g.features) and (g.features[feat.id] == true or g.features[feat.id] == 1) or false
+	end
 	out.pillHidden = {}
 	if istable(g.pillHidden) then
 		local n = 0

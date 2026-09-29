@@ -24,7 +24,8 @@ Deine Freunde laden den Client-Teil beim Joinen automatisch herunter.
 | **Victim** | alle | Fähigkeiten der Opfer |
 | **Players** | Admin | Jäger setzen (zum Testen), „Next round“ für vorausgewählte Jäger, Zahnrad = Default-Einstellungen des Spielers |
 | **Server** | Admin | Werte aller Fähigkeiten (Reichweite, Dauer, Abklingzeit …) |
-| **Game** | Admin | Runde oder **Serie** starten/stoppen, Überlebenszeit, Versteckphase, Jäger-Anzahl und -Auswahl, Rollenvergabe, **Final phase & music**, **Items**, **Test mode**, **Role editor** |
+| **Game** | Admin | Runde oder **Serie** starten/stoppen, Überlebenszeit, Versteckphase, Jäger-Anzahl und -Auswahl, Rollenvergabe, **Final phase & music**, **Items**, **Victim weapons**, **Role editor** |
+| **Developer** | Admin | Versteckt: **Shift + Rechtsklick auf SERVER**. Ausgeblendete Funktionen (z. B. Aim Assist), Testmodus, alle Sounds zum Anhören |
 
 Links in jedem Tab ist eine Abschnittsliste; ein Klick springt direkt zum Abschnitt.
 
@@ -82,7 +83,7 @@ Mitgelieferte Rollen:
 |---|---|---|---|
 | Stalker | 1 Behind You, 2 Scary Sounds, 3 Teleport, 4 Roar | Stalk | Footprints, Heartbeat Sensor |
 | Tracker | 1 Chaser Pulse, 2 Roar, 3 Noise Radar, 4 Scary Sounds | Stalk | Footprints |
-| Brute | 1 Roar, 2 Teleport, 3 Jump Scare, 4 Aim Assist | – | Heartbeat Sensor |
+| Brute | 1 Roar, 2 Teleport, 3 Jump Scare, 4 Chaser Pulse | – | Heartbeat Sensor |
 | Seer | 1 Radar, 2 Chaser Pulse, 3 Jump Scare, 4 Scary Sounds | Stalk | Heartbeat Sensor |
 | Phantom | 1 Mimic, 2 Blackout, 3 Trap, 4 Door Slam | Mark | Night Vision, Heartbeat Sensor |
 
@@ -96,7 +97,7 @@ Rollenvergabe (Game → Role assignment): **Fixed role**, **Player choice** (Aus
 | Roar | Active | Opfer in der Nähe werden langsamer, ihr Bildschirm wackelt |
 | Teleport | Active | Teleport dorthin, wo du hinschaust |
 | Scary Sounds | Active | Soundauswahl (Kinderlachen, Schreie …), abspielbar bei dir, hinter einem Opfer, wo du hinschaust oder überall |
-| Aim Assist | Toggle | Zieht das Fadenkreuz auf sichtbare Opfer (Kreis zeigt den Winkel) |
+| Aim Assist | Toggle | Zieht das Fadenkreuz auf sichtbare Opfer (Kreis zeigt den Winkel). **Standardmäßig ausgeblendet**, im Entwickler-Menü einschaltbar |
 | Radar | Toggle | Alle Opfer rot umrandet durch Wände |
 | Noise Radar | Toggle | Wer rennt, springt oder schießt, erscheint als Ping (pro Opfer höchstens alle 4 s). Nur an/aus, nicht passiv. Solange an, kannst du nicht sprinten |
 | Footprints | Toggle | Leuchtende Fußspuren der Opfer |
@@ -182,9 +183,16 @@ Jäger wird immer, wer bisher am seltensten Jäger war. Zwischen den Runden gibt
 Punkte: Opfer überlebt +3, +1 pro volle Minute am Leben. Jäger +2 pro gefangenem Opfer, +3 bei Sieg.
 Nach jeder Runde zeigt das Ergebnisfenster den Zwischenstand, nach der letzten Runde den Gesamtsieger.
 
+## Entwickler-Menü
+
+Als Admin **Shift + Rechtsklick auf den Tab SERVER**:
+- **Hidden features:** standardmäßig ausgeblendete Funktionen einschalten (zurzeit Aim Assist). Ausgeblendet = nirgends sichtbar (Server-Tab, Role editor, Hunter-Menü, HUD) und ohne Funktion.
+- **Test mode** (siehe unten)
+- **Sounds:** jeden Sound von PULSE nach Gruppen einzeln abspielen, eigene Dateien sind mit ★ markiert.
+
 ## Testmodus
 
-Im Tab **Game → Test mode**:
+Im **Entwickler-Menü → Test mode**:
 - Bots hinzufügen und wieder kicken, Bots laufen lassen (sie rennen, springen und ducken sich zufällig)
 - Testrunde starten: Du bist Jäger, 5 s Versteckphase
 - Alle Items vor die Füße legen

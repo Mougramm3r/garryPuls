@@ -189,19 +189,23 @@ local function BuildSections(body, sections)
 	local content = NewScroll(body)
 	content:Dock(FILL)
 
-	for _, sec in ipairs(sections) do
-		local header = AddHeader(content, sec[1])
-		sec[2](content)
+	-- entries can be false ("cond and { ... }"): those sections are switched off
+	for i = 1, table.maxn(sections) do
+		local sec = sections[i]
+		if istable(sec) then
+			local header = AddHeader(content, sec[1])
+			sec[2](content)
 
-		local link = side:Add("DButton")
-		link:Dock(TOP)
-		link:SetTall(26)
-		link:SetText("")
-		link.Paint = function(self, w, h)
-			if self:IsHovered() then draw.RoundedBox(4, 0, 0, w, h, Color(43, 34, 35)) end
-			draw.SimpleText(sec[1], "HT_Side", 8, h / 2, self:IsHovered() and C.text or C.muted, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+			local link = side:Add("DButton")
+			link:Dock(TOP)
+			link:SetTall(26)
+			link:SetText("")
+			link.Paint = function(self, w, h)
+				if self:IsHovered() then draw.RoundedBox(4, 0, 0, w, h, Color(43, 34, 35)) end
+				draw.SimpleText(sec[1], "HT_Side", 8, h / 2, self:IsHovered() and C.text or C.muted, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+			end
+			link.DoClick = function() content:ScrollToChild(header) end
 		end
-		link.DoClick = function() content:ScrollToChild(header) end
 	end
 	return content
 end
@@ -242,7 +246,7 @@ local function LoadoutEditor(parent, stateMap, onChange)
 		for id, cb in pairs(combos) do cb:SetValue(text(stateMap[id])) end
 	end
 
-	for _, def in ipairs(HT.HunterAbilities) do
+	for _, def in ipairs(HT.VisibleHunterAbilities()) do
 		local row = Row(parent, def.name)
 		row:SetTooltip(def.desc)
 
@@ -339,7 +343,7 @@ local function DefaultSections(target)
 				HT.SendSetting(target, "HT_DefLoadout", HT.SerializeLoadout(st))
 			end)
 		end },
-		{ "Aim Assist", function(p)
+		HT.FeatureOn("aim") and { "Aim Assist", function(p)
 			AddCheck(p, "Only while shooting / aiming", Get(target, "HT_AimOnFire"), function(v) HT.SendSetting(target, "HT_AimOnFire", v) end)
 			AddCheck(p, "Also NPCs / nextbots (good for testing)", Get(target, "HT_AimNPC"), function(v) HT.SendSetting(target, "HT_AimNPC", v) end)
 			AddSlider(p, "Strength", 0, CV.aimMaxStrength:GetFloat(), 2, Get(target, "HT_AimStrength"), function(v) HT.SendSetting(target, "HT_AimStrength", v) end)
@@ -665,8 +669,10 @@ Tabs.server = function()
 	return { sections = {
 		{ "Hunter abilities", function(p)
 			ServerSlider(p, "Hunter hit: no sprint for (s, 0 = off)", CV.hunterHurtSlow, 1)
-			ServerSlider(p, "Aim assist: max strength", CV.aimMaxStrength, 2)
-			ServerSlider(p, "Aim assist: max angle", CV.aimMaxFov)
+			if HT.FeatureOn("aim") then
+				ServerSlider(p, "Aim assist: max strength", CV.aimMaxStrength, 2)
+				ServerSlider(p, "Aim assist: max angle", CV.aimMaxFov)
+			end
 			ServerSlider(p, "Chaser: max radius", CV.chaserMaxRadius)
 			ServerSlider(p, "Chaser: max duration (s)", CV.chaserMaxTime, 1)
 			ServerSlider(p, "Chaser: cooldown (s)", CV.chaserCooldown)
@@ -884,18 +890,6 @@ Tabs.game = function()
 				end)
 			end
 		end },
-				{ "Test mode", function(p)
-			AddButton(p, "Add a bot", function() RoundCmd("addbot") Refresh(1) end)
-			AddButton(p, "Kick all bots", function() RoundCmd("kickbots") Refresh(1) end)
-			AddCheck(p, "Bots walk around (sprint, jump, crouch)", g.botsWalk, function(v) GameSet("botsWalk", v) end)
-			AddButton(p, "Start test round (you are the hunter, 5 s hiding)", function()
-				RoundCmd("testround")
-				menuFrame:Remove()
-			end)
-			AddButton(p, "Drop all items at my feet", function() RoundCmd("items") end)
-			AddButton(p, "Set my sanity to 0 (hallucinations)", function() RoundCmd("sanity0") end)
-			AddButton(p, "Set my sanity to 100", function() RoundCmd("sanity100") end)
-		end },
 		{ "Role editor", function(p)
 			local role = (editingRole ~= "__new") and (HT.FindRole(editingRole or "") or HT.Roles[1]) or nil
 			local edit = {
@@ -971,6 +965,151 @@ Tabs.game = function()
 end
 
 ------------------------------------------------------------------------
+-- Developer menu (admins: shift + right click on the SERVER tab)
+------------------------------------------------------------------------
+
+-- Every sound PULSE uses, grouped. folder = own files in sound/pulse/<folder>/ replace the default.
+local SOUND_GROUPS = {
+	{ "Hunter abilities", {
+		{ "Behind You: behind the victim", "npc/stalker/breathing3.wav", 100, folder = "behindu/behind" },
+		{ "Behind You: victim turns around", "npc/stalker/go_alert2a.wav", 60, folder = "behindu/turn" },
+		{ "Roar", "npc/fast_zombie/fz_scream1.wav", 80 },
+		{ "Teleport", "npc/stalker/go_alert2a.wav", 70 },
+		{ "Chaser Pulse", "ambient/levels/citadel/weapon_disintegrate2.wav", 100 },
+		{ "Jump Scare 1", "npc/fast_zombie/fz_scream1.wav", 100 },
+		{ "Jump Scare 2", "npc/zombie/zombie_pain6.wav", 100 },
+		{ "Blackout", "ambient/energy/power_off1.wav", 80 },
+		{ "Door Slam", "doors/heavy_metal_stop1.wav", 100 },
+		{ "Trap triggered", "physics/metal/metal_chainlink_impact_hard1.wav", 100 },
+		{ "Heartbeat (sensor and victims)", "pulse_fx/heartbeat.wav", 100 },
+		{ "Toggle on / off", "buttons/blip1.wav", 100 },
+	} },
+	{ "Victim abilities", {
+		{ "Flashlight Blind", "items/flashlight1.wav", 90 },
+		{ "Hunter is blinded", "ambient/energy/zap1.wav", 100 },
+		{ "Stay Silent", "npc/zombie/foot_slide1.wav", 100 },
+		{ "Decoy", "weapons/slam/throw.wav", 100 },
+	} },
+	{ "Items", {
+		{ "Calming Pills", "npc/barnacle/barnacle_gulp1.wav", 100 },
+		{ "Glowstick", "weapons/slam/throw.wav", 100 },
+		{ "Camera Flash", "npc/scanner/scanner_photo1.wav", 100 },
+	} },
+	{ "Sanity (hallucinations)", {
+		{ "Whisper 1", "ambient/levels/citadel/strange_talk1.wav", 100 },
+		{ "Whisper 2", "ambient/levels/citadel/strange_talk3.wav", 100 },
+		{ "Whisper 3", "ambient/levels/citadel/strange_talk5.wav", 100 },
+		{ "Playground", "ambient/voices/playground_memory.wav", 100 },
+		{ "Breathing", "npc/stalker/breathing3.wav", 100 },
+	} },
+	{ "Round", {
+		{ "Hunter wins", "ambient/creatures/town_child_scream1.wav", 100 },
+		{ "Victims win", "ambient/levels/citadel/strange_talk1.wav", 100 },
+		{ "Menu click", "buttons/button14.wav", 100 },
+	} },
+	{ "Atmosphere", {
+		{ "Chase music", "music/hl2_song3.mp3", 100, folder = "music" },
+		{ "Ambient", "ambient/atmosphere/tone_quiet.wav", 100, folder = "ambient" },
+		{ "Stinger", "ambient/creatures/town_moan1.wav", 100, folder = "stingers" },
+	} },
+}
+
+local devChannel
+local function StopDevSound()
+	if IsValid(devChannel) then devChannel:Stop() end
+	devChannel = nil
+end
+
+local function PlayDevSound(path, pitch)
+	StopDevSound()
+	sound.PlayFile("sound/" .. path, "noplay", function(chan)
+		if not IsValid(chan) then HT.Notify("Can't play " .. path) return end
+		StopDevSound()
+		devChannel = chan
+		chan:SetPlaybackRate((pitch or 100) / 100)
+		chan:Play()
+	end)
+end
+
+local function OwnFiles(folder)
+	local list = {}
+	local dir = folder == "" and "pulse/" or ("pulse/" .. folder .. "/")
+	local files = file.Find("sound/" .. dir .. "*", "GAME") or {}
+	table.sort(files)
+	for _, f in ipairs(files) do
+		local ext = string.lower(string.GetExtensionFromFilename(f) or "")
+		if ext == "wav" or ext == "mp3" or ext == "ogg" then list[#list + 1] = dir .. f end
+	end
+	return list
+end
+
+local function SoundRow(p, label, path, pitch)
+	local row = Row(p, label, 26)
+	local b = row:Add("DButton")
+	b:Dock(RIGHT)
+	b:SetWide(70)
+	b:SetText("Play")
+	b.DoClick = function() PlayDevSound(path, pitch) end
+	local l = row:Add("DLabel")
+	l:Dock(FILL)
+	l:DockMargin(8, 0, 8, 0)
+	l:SetText(path)
+	l:SetTextColor(C.faint)
+end
+
+local function SoundSection(entries)
+	return function(p)
+		AddButton(p, "Stop sound", StopDevSound)
+		for _, e in ipairs(entries) do
+			local own = e.folder and OwnFiles(e.folder) or {}
+			for _, path in ipairs(own) do SoundRow(p, "★ " .. e[1], path, 100) end
+			SoundRow(p, e[1] .. (#own > 0 and "  (default, not used)" or ""), e[2], e[3])
+			if e.folder then AddInfo(p, "Own files: sound/pulse/" .. e.folder .. "/ (random pick)") end
+		end
+	end
+end
+
+Tabs.dev = function()
+	local g = HT.Game
+	local sections = {
+		{ "Hidden features", function(p)
+			AddInfo(p, "Features that are switched off by default. Switched off = not shown anywhere (menus, role editor, HUD) and don't work.")
+			for _, feat in ipairs(HT.HideableFeatures) do
+				AddCheck(p, feat.name, HT.FeatureOn(feat.id), function(v)
+					local features = table.Copy(HT.Game.features or {})
+					features[feat.id] = v
+					HT.Game.features = features
+					GameSet("features", features)
+					Refresh(0.8)
+				end)
+				AddInfo(p, feat.desc)
+			end
+		end },
+		{ "Test mode", function(p)
+			AddButton(p, "Add a bot", function() RoundCmd("addbot") Refresh(1) end)
+			AddButton(p, "Kick all bots", function() RoundCmd("kickbots") Refresh(1) end)
+			AddCheck(p, "Bots walk around (sprint, jump, crouch)", g.botsWalk, function(v) GameSet("botsWalk", v) end)
+			AddButton(p, "Start test round (you are the hunter, 5 s hiding)", function()
+				RoundCmd("testround")
+				menuFrame:Remove()
+			end)
+			AddButton(p, "Drop all items at my feet", function() RoundCmd("items") end)
+			AddButton(p, "Set my sanity to 0 (hallucinations)", function() RoundCmd("sanity0") end)
+			AddButton(p, "Set my sanity to 100", function() RoundCmd("sanity100") end)
+		end },
+	}
+	for _, group in ipairs(SOUND_GROUPS) do
+		sections[#sections + 1] = { "Sounds: " .. group[1], SoundSection(group[2]) }
+	end
+	sections[#sections + 1] = { "Sounds: Scary Sounds", function(p)
+		AddButton(p, "Stop sound", StopDevSound)
+		for _, e in ipairs(HT.BuiltinSounds) do SoundRow(p, e[1], e[2], 100) end
+		for _, path in ipairs(OwnFiles("")) do SoundRow(p, "★ " .. string.GetFileFromFilename(path), path, 100) end
+	end }
+	return { sections = sections }
+end
+
+------------------------------------------------------------------------
 -- Main menu window
 ------------------------------------------------------------------------
 
@@ -1010,6 +1149,7 @@ function HT.OpenMenu(tab, sub)
 	local tabs = VisibleTabs()
 	local valid = {}
 	for _, t in ipairs(tabs) do valid[t[1]] = true end
+	valid.dev = HT.IsManager(LP()) -- hidden tab: shift + right click on SERVER
 
 	function f.ShowTab(id, s, keepScroll)
 		if not valid[id] then id = "keys" end
@@ -1062,7 +1202,7 @@ function HT.OpenMenu(tab, sub)
 		surface.SetFont("HT_Tab")
 		b:SetWide(surface.GetTextSize(string.upper(t[2])) + 32)
 		b.Paint = function(self, w, h)
-			local on = state.tab == t[1]
+			local on = state.tab == t[1] or (t[1] == "server" and state.tab == "dev")
 			if on then
 				draw.RoundedBox(0, 0, 0, w, h, Color(28, 22, 23))
 				surface.SetDrawColor(C.accent)
@@ -1071,6 +1211,11 @@ function HT.OpenMenu(tab, sub)
 			draw.SimpleText(string.upper(t[2]), "HT_Tab", w / 2, h / 2 - 1, (on or self:IsHovered()) and C.text or C.muted, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 		end
 		b.DoClick = function() f.ShowTab(t[1], "abilities") end
+		if t[1] == "server" then
+			b.DoRightClick = function()
+				if input.IsShiftDown() then f.ShowTab("dev") end
+			end
+		end
 	end
 
 	f.ShowTab(tab or state.tab, sub or state.sub)

@@ -112,7 +112,7 @@ HT.HunterAbilities = {
 	{ id = "roar",     name = "Roar",             kind = "active", desc = "Nearby victims are slowed and their screen shakes." },
 	{ id = "teleport", name = "Teleport",         kind = "active", desc = "Teleport to the spot you are looking at." },
 	{ id = "sounds",   name = "Scary Sounds",     kind = "active", desc = "Pick a scary sound and play it somewhere." },
-	{ id = "aim",      name = "Aim Assist",       kind = "toggle", desc = "Pulls your crosshair toward visible victims." },
+	{ id = "aim",      name = "Aim Assist",       kind = "toggle", feature = "aim", desc = "Pulls your crosshair toward visible victims." },
 	{ id = "radar",    name = "Radar",            kind = "toggle", desc = "See all victims through walls." },
 	{ id = "noise",    name = "Noise Radar",      kind = "toggle", noPassive = true,
 		desc = "Sprinting, jumping and shooting victims show up as pings. You can't sprint while it is on." },
@@ -142,6 +142,31 @@ HT.VictimAbilities = {
 		desc = "Crouch still for a while to vanish from radar and chaser pulse." },
 }
 
+-- Features that are hidden by default and can be switched on in the developer menu (Game setting "features")
+HT.HideableFeatures = {
+	{ id = "aim", name = "Aim Assist", desc = "Hunter ability, its personal settings and the server limits." },
+}
+
+function HT.FeatureOn(id)
+	local f = HT.Game and HT.Game.features
+	return istable(f) and f[id] == true
+end
+
+-- A hunter ability whose feature is switched off: not shown anywhere and doesn't work
+function HT.AbilityHidden(id)
+	local def = HT.AbilityByID[id]
+	return def ~= nil and def.feature ~= nil and not HT.FeatureOn(def.feature)
+end
+
+-- Hunter abilities that are not hidden
+function HT.VisibleHunterAbilities()
+	local list = {}
+	for _, def in ipairs(HT.HunterAbilities) do
+		if not HT.AbilityHidden(def.id) then list[#list + 1] = def end
+	end
+	return list
+end
+
 HT.AbilityByID = {}
 for _, a in ipairs(HT.HunterAbilities) do a.hunter = true; HT.AbilityByID[a.id] = a end
 for _, a in ipairs(HT.VictimAbilities) do HT.AbilityByID[a.id] = a end
@@ -164,7 +189,7 @@ function HT.ParseLoadout(str)
 	local lo = { slots = {}, state = {}, menu = {} }
 	for id, v in string.gmatch(str or "", "([%w_]+)=(%w+)") do
 		local def = HT.AbilityByID[id]
-		if def and def.hunter and not lo.state[id] then
+		if def and def.hunter and not lo.state[id] and not HT.AbilityHidden(id) then
 			local n = tonumber(v)
 			if n and n >= 1 and n <= HT.SLOTS and not lo.slots[n] then
 				lo.slots[n] = id
@@ -195,10 +220,11 @@ end
 local loadoutCache = {}
 function HT.Loadout(ply)
 	local s = ply:GetNWString("HT_Loadout", "")
-	local lo = loadoutCache[s]
+	local key = s .. (HT.FeatureOn("aim") and "|aim" or "") -- hidden abilities change the result
+	local lo = loadoutCache[key]
 	if not lo then
 		lo = HT.ParseLoadout(s)
-		loadoutCache[s] = lo
+		loadoutCache[key] = lo
 	end
 	return lo
 end
@@ -210,7 +236,7 @@ end
 HT.DefaultRoles = {
 	{ name = "Stalker", loadout = "behind=1;sounds=2;teleport=3;roar=4;stalk=m;tracks=p;heart=p" },
 	{ name = "Tracker", loadout = "chaser=1;roar=2;noise=3;sounds=4;stalk=m;tracks=p" },
-	{ name = "Brute",   loadout = "roar=1;teleport=2;jump=3;aim=4;heart=p" },
+	{ name = "Brute",   loadout = "roar=1;teleport=2;jump=3;chaser=4;heart=p" },
 	{ name = "Seer",    loadout = "radar=1;chaser=2;jump=3;sounds=4;stalk=m;heart=p" },
 	{ name = "Phantom", loadout = "mimic=1;blackout=2;trap=3;doorslam=4;mark=m;nightvision=p;heart=p" },
 }
@@ -249,6 +275,9 @@ HT.GameDefaults = {
 
 	-- test mode
 	botsWalk     = false,
+
+	-- hidden features switched on in the developer menu, e.g. { aim = true }
+	features     = {},
 
 	-- Pill Pack groups to hide in the character lists (nil = base packs hidden)
 	pillHidden   = {},
