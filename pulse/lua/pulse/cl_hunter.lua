@@ -186,7 +186,8 @@ function HT.UseAbility(id)
 			net.WriteString(id)
 			net.WriteBool(on)
 			net.SendToServer()
-			surface.PlaySound("buttons/blip1.wav")
+			HT.PlaySlotLocal("toggle")
+			if id == "nightvision" and on then HT.PlaySlotLocal("nightvision") end
 			HT.Notify(def.name .. (on and " ON" or " OFF"))
 			return
 		end
@@ -196,7 +197,7 @@ function HT.UseAbility(id)
 		if def.kind == "toggle" then
 			local cvar = HT.VictimToggles[id]
 			cvar:SetBool(not cvar:GetBool())
-			surface.PlaySound("buttons/blip1.wav")
+			HT.PlaySlotLocal("toggle")
 			HT.Notify(def.name .. (cvar:GetBool() and " ON" or " OFF"))
 			return
 		end
@@ -218,9 +219,7 @@ function HT.UseAbility(id)
 	net.SendToServer()
 	HT.LastUsed = id
 
-	if id == "chaser" then surface.PlaySound("ambient/levels/citadel/weapon_disintegrate2.wav")
-	elseif id == "silent" then surface.PlaySound("npc/zombie/foot_slide1.wav")
-	elseif id == "decoy" then surface.PlaySound("weapons/slam/throw.wav") end
+	if id == "chaser" or id == "silent" or id == "decoy" or id == "stalk" then HT.PlaySlotLocal(id) end
 end
 
 -- What is on slot n for me right now (hunter loadout or victim abilities)
@@ -509,7 +508,7 @@ local blindUntil, blindTime = 0, 1
 net.Receive("HT_Blind", function()
 	blindTime = net.ReadFloat()
 	blindUntil = CurTime() + blindTime
-	surface.PlaySound("ambient/energy/zap1.wav")
+	HT.PlaySlotLocal("blinded")
 end)
 
 ------------------------------------------------------------------------
@@ -527,6 +526,7 @@ local pings = {}
 
 net.Receive("HT_Ping", function()
 	pings[#pings + 1] = { pos = net.ReadVector(), kind = net.ReadUInt(2), time = CurTime() }
+	HT.PlaySlotLocal("ping")
 end)
 
 local function DrawPings()
@@ -588,7 +588,6 @@ end)
 -- Heartbeat (hunter sensor and victim heartbeat)
 ------------------------------------------------------------------------
 
-local HEART_SOUND = "pulse_fx/heartbeat.wav"
 local heartDist, heartTime, nextBeat = -1, 0, 0
 local forcedHeartUntil = 0
 
@@ -635,7 +634,7 @@ hook.Add("Think", "HT_Heartbeat", function()
 
 	nextBeat = now + Lerp(closeness, 1.4, 0.35)
 	local vol = Lerp(closeness, 0.25, 1)
-	me:EmitSound(HEART_SOUND, 75, 100, vol, CHAN_STATIC)
+	HT.EmitSlot(me, "heartbeat", 75, vol)
 end)
 
 ------------------------------------------------------------------------
@@ -931,8 +930,7 @@ net.Receive("HT_Jumpscare", function()
 	if seq and seq >= 0 then ent:ResetSequence(seq) end
 	scare = { ent = ent, untilTime = CurTime() + duration, duration = duration }
 
-	surface.PlaySound("npc/fast_zombie/fz_scream1.wav")
-	surface.PlaySound("npc/zombie/zombie_pain6.wav")
+	HT.PlaySlotLocal("jumpscare")
 	util.ScreenShake(LocalPlayer():GetPos(), 20, 30, duration + 0.3, 100)
 end)
 
@@ -978,13 +976,6 @@ end)
 -- Low sanity: distorted view; at 0 also whispers and fake hunters
 ------------------------------------------------------------------------
 
-local WHISPERS = {
-	"ambient/levels/citadel/strange_talk1.wav",
-	"ambient/levels/citadel/strange_talk3.wav",
-	"ambient/levels/citadel/strange_talk5.wav",
-	"ambient/voices/playground_memory.wav",
-	"npc/stalker/breathing3.wav",
-}
 local nextWhisper, nextPhantom = 0, 0
 local phantom -- { ent, pos, untilTime }
 
@@ -1013,7 +1004,7 @@ hook.Add("Think", "HT_Hallucinations", function()
 
 	if now > nextWhisper then
 		nextWhisper = now + math.random(12, 25)
-		me:EmitSound(WHISPERS[math.random(#WHISPERS)], 60, math.random(80, 110), 0.5, CHAN_STATIC)
+		HT.EmitSlot(me, "whisper", 60, 0.5)
 	end
 
 	-- a fake hunter standing somewhere in view for a moment

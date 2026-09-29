@@ -19,6 +19,6 @@ function SWEP:UseItem(owner)
 	ent:Spawn()
 	local phys = ent:GetPhysicsObject()
 	if IsValid(phys) then phys:SetVelocity(owner:GetAimVector() * 700 + owner:GetVelocity()) end
-	owner:EmitSound("weapons/slam/throw.wav", 60)
+	Pulse.EmitSlot(owner, "glowstick", 60)
 	return true
 end

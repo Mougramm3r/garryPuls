@@ -11,6 +11,6 @@ function SWEP:UseItem(owner)
 	if not HT.CV.sanityEnabled:GetBool() then owner:ChatPrint("[PULSE] Sanity is off on this server.") return false end
 	if HT.Sanity(owner) >= 100 then owner:ChatPrint("[PULSE] You feel calm already.") return false end
 	owner:SetNWFloat("HT_Sanity", math.min(100, HT.Sanity(owner) + 30))
-	owner:EmitSound("npc/barnacle/barnacle_gulp1.wav", 60)
+	Pulse.EmitSlot(owner, "pills", 60)
 	return true
 end

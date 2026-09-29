@@ -267,9 +267,6 @@ end)
 -- Abilities with cooldown
 ------------------------------------------------------------------------
 
-local ROAR_SOUND = "npc/fast_zombie/fz_scream1.wav"
-local TELEPORT_SOUND = "npc/stalker/go_alert2a.wav"
-local FLASH_SOUND = "items/flashlight1.wav"
 local DECOY_MODEL = "models/props_junk/popcan01a.mdl"
 
 local SendPing -- defined below (noise radar)
@@ -315,7 +312,7 @@ local Actions = {
 	end,
 
 	roar = function(ply, now)
-		ply:EmitSound(ROAR_SOUND, 120, 80, 1, CHAN_VOICE)
+		HT.EmitSlot(ply, "roar", 120, 1, CHAN_VOICE)
 
 		local duration = CV.roarDuration:GetFloat()
 		local radiusSqr = CV.roarRadius:GetFloat() ^ 2
@@ -344,17 +341,17 @@ local Actions = {
 			ply:ChatPrint("[PULSE] No room to teleport there.")
 			return
 		end
-		ply:EmitSound(TELEPORT_SOUND, 75, 70)
+		HT.PlaySlotAt("teleport", ply:GetPos(), 75)
 		ply:SetPos(spot)
 		ply:SetVelocity(-ply:GetVelocity())
 		ply:ScreenFade(SCREENFADE.IN, color_black, 0.4, 0)
-		sound.Play(TELEPORT_SOUND, spot, 80, 60)
+		HT.PlaySlotAt("teleport", spot, 80)
 		return CV.teleportCooldown:GetFloat()
 	end,
 
 	-- Victim: blinds hunters you light up while they look at you
 	flash = function(ply)
-		ply:EmitSound(FLASH_SOUND, 75, 90)
+		HT.EmitSlot(ply, "flash", 75)
 
 		local eye, aim = ply:EyePos(), ply:GetAimVector()
 		local range = CV.flashRange:GetFloat()
@@ -411,7 +408,7 @@ local Actions = {
 		ent:AddCallback("PhysicsCollide", function(e, data)
 			if e.HT_Pinged or data.Speed < 80 then return end
 			e.HT_Pinged = true
-			e:EmitSound("physics/metal/soda_can_impact_hard" .. math.random(1, 3) .. ".wav", 90)
+			HT.EmitSlot(e, "decoy_land", 90)
 			SendPing(data.HitPos + Vector(0, 0, 40), math.random(1, 2))
 		end)
 		SafeRemoveEntityDelayed(ent, 8)
@@ -538,7 +535,7 @@ Actions.blackout = function(ply, now)
 			end
 		end
 	end
-	sound.Play("ambient/energy/power_off1.wav", ply:GetPos(), 90, 80)
+	HT.PlaySlotAt("blackout", ply:GetPos(), 90)
 	return CV.blackoutCooldown:GetFloat(), duration
 end
 
@@ -563,6 +560,7 @@ Actions.trap = function(ply)
 	trap:SetOwner(ply)
 	trap:Spawn()
 	table.insert(traps[ply], trap)
+	HT.PlaySlotAt("trap_place", trap:GetPos(), 70)
 	return CV.trapCooldown:GetFloat()
 end
 
@@ -585,6 +583,7 @@ Actions.mark = function(ply, now)
 	if not best then ply:ChatPrint("[PULSE] Aim at a victim you can see.") return end
 	best:SetNWFloat("HT_RevealUntil", now + CV.markTime:GetFloat())
 	ply:ChatPrint("[PULSE] Marked " .. best:Nick() .. ".")
+	HT.SendSlot("mark", best)
 	return CV.markCooldown:GetFloat(), CV.markTime:GetFloat()
 end
 
@@ -604,6 +603,7 @@ Actions.mimic = function(ply)
 	ply:SetPlayerColor(copy:GetPlayerColor())
 	ply:DrawWorldModel(false)
 	ply:ChatPrint("[PULSE] You look like " .. copy:Nick() .. ". Attacking ends the disguise.")
+	HT.EmitSlot(ply, "mimic", 70)
 	local duration = CV.mimicTime:GetFloat()
 	return duration + CV.mimicCooldown:GetFloat(), duration
 end
@@ -617,7 +617,7 @@ Actions.doorslam = function(ply)
 			ent:Fire("Close")
 			ent:Fire("Lock")
 			timer.Simple(lock, function() if IsValid(ent) then ent:Fire("Unlock") end end)
-			sound.Play("doors/heavy_metal_stop1.wav", ent:WorldSpaceCenter(), 85, math.random(90, 110))
+			HT.PlaySlotAt("doorslam", ent:WorldSpaceCenter(), 85)
 		end
 	end
 	if count == 0 then ply:ChatPrint("[PULSE] No doors nearby. Door Slam depends on the map.") return end
@@ -675,35 +675,9 @@ local function ReturnFromBehind(ply)
 	end
 end
 
-local BREATH_SOUND = "npc/stalker/breathing3.wav"
-local VANISH_SOUND = "npc/stalker/go_alert2a.wav"
-
--- Own sounds: sound/pulse/behindu/behind/ (while standing behind) and sound/pulse/behindu/turn/ (victim turns around).
--- Several files = a random one each time. Empty folder = the Half-Life 2 sound.
-local function FolderSounds(folder)
-	local list = {}
-	local files = file.Find("sound/pulse/" .. folder .. "/*", "GAME") or {}
-	table.sort(files)
-	for _, f in ipairs(files) do
-		local ext = string.lower(string.GetExtensionFromFilename(f) or "")
-		if ext == "wav" or ext == "mp3" or ext == "ogg" then
-			local path = "pulse/" .. folder .. "/" .. f
-			resource.AddFile("sound/" .. path) -- friends download it when joining
-			list[#list + 1] = path
-		end
-	end
-	return list
-end
-local behindSounds = FolderSounds("behindu/behind")
-local turnSounds = FolderSounds("behindu/turn")
--- own music, ambient and stingers are played by the clients: they need the files too
-for _, folder in ipairs({ "music", "ambient", "stingers" }) do FolderSounds(folder) end
-
--- Plays a random own sound (or the built-in one) and returns how long it lasts
-local function PlayFrom(list, builtin, pos, level, builtinPitch)
-	local path = #list > 0 and list[math.random(#list)] or builtin
-	sound.Play(path, pos, level, #list > 0 and 100 or builtinPitch, 1)
-	local len = SoundDuration(path) or 0
+-- Behind You sounds: own files in sound/pulse/behindu/behind/ and .../turn/ (see sh_sounds.lua)
+local function BehindSound(id, pos, level)
+	local len = HT.PlaySlotAt(id, pos, level)
 	return (len > 0 and len < 15) and len or 2
 end
 local TURN_CONE = math.cos(math.rad(55))
@@ -728,13 +702,13 @@ timer.Create("HT_BehindTick", 0.1, 0, function()
 				dir:Normalize()
 				if victim:GetAimVector():Dot(dir) > TURN_CONE then
 					-- seen: stay a moment so the victim really sees the hunter, then vanish
-					PlayFrom(turnSounds, VANISH_SOUND, ply:EyePos(), #turnSounds > 0 and 75 or 55, 60)
+					BehindSound("behind_turn", ply:EyePos(), #HT.OwnSounds("behind_turn") > 0 and 75 or 55)
 					HT.Scare(victim, 20)
 					ply.HT_BehindSeen = now + SEEN_TIME
 					ply:SetNWFloat("HT_Active_behind", now + SEEN_TIME + 0.5)
 				elseif now > (ply.HT_BehindBreath or 0) then
 					-- next sound after this one ends (short pause in between)
-					local len = PlayFrom(behindSounds, BREATH_SOUND, ply:EyePos(), 65, 100)
+					local len = BehindSound("behind", ply:EyePos(), 65)
 					ply.HT_BehindBreath = now + math.max(2.5, len + math.Rand(0.5, 1.5))
 				end
 			end
@@ -845,7 +819,10 @@ timer.Create("HT_SensesTick", 0.25, 0, function()
 			else
 				ply.HT_StillSince = nil
 			end
-			if ply:GetNWBool("HT_Hidden", false) ~= hidden then ply:SetNWBool("HT_Hidden", hidden) end
+			if ply:GetNWBool("HT_Hidden", false) ~= hidden then
+				ply:SetNWBool("HT_Hidden", hidden)
+				if hidden then HT.SendSlot("hidden", ply) end
+			end
 
 			-- Sprinting is loud, walking and sneaking are not (insane victims are loud when walking too)
 			local insane = HT.IsInsane(ply)
@@ -1038,6 +1015,7 @@ hook.Add("PostEntityTakeDamage", "HT_Adrenaline", function(ent, dmg, took)
 	local duration = CV.adrenalineTime:GetFloat()
 	ent:SetNWFloat("HT_BoostFactor", CV.adrenalineSpeed:GetFloat())
 	ent:SetNWFloat("HT_BoostUntil", now + duration)
+	HT.SendSlot("adrenaline", ent)
 	ent:SetNWFloat("HT_AdrenalineReady", now + duration + CV.adrenalineCooldown:GetFloat())
 end)
 
@@ -1045,7 +1023,6 @@ end)
 -- Scary sounds
 ------------------------------------------------------------------------
 
-local SOUND_EXT = { wav = true, mp3 = true, ogg = true }
 local soundList = {}
 
 -- Built-in HL2 sounds + own files from sound/pulse/
@@ -1057,16 +1034,13 @@ local function BuildSoundList()
 		end
 	end
 
-	local files = file.Find("sound/pulse/*", "GAME")
-	table.sort(files)
-	for _, f in ipairs(files) do
-		local ext = string.lower(string.GetExtensionFromFilename(f) or "")
-		if SOUND_EXT[ext] then
-			local path = "pulse/" .. f
-			resource.AddFile("sound/" .. path) -- friends download the file when joining
-			local name = string.gsub(string.StripExtension(f), "_", " ")
-			soundList[#soundList + 1] = { name = "★ " .. name, path = path }
-		end
+	-- own files: sound/pulse/scary/ (and, like before, directly in sound/pulse/)
+	local own = HT.SoundFolderFiles("scary")
+	table.Add(own, HT.SoundFolderFiles(""))
+	for _, path in ipairs(own) do
+		resource.AddFile("sound/" .. path) -- friends download the file when joining
+		local name = string.gsub(string.StripExtension(string.GetFileFromFilename(path)), "_", " ")
+		soundList[#soundList + 1] = { name = "★ " .. name, path = path }
 	end
 end
 BuildSoundList()
@@ -1183,6 +1157,7 @@ timer.Create("HT_Stamina", 0.1, 0, function()
 
 			if new <= 0 and not exhausted then
 				ply:SetNWBool("HT_Exhausted", true)
+				HT.SendSlot("exhausted", ply)
 			elseif exhausted and new >= 30 then
 				ply:SetNWBool("HT_Exhausted", false)
 			end

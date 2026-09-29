@@ -9,7 +9,7 @@ SWEP.HelpText = "Left click: blinds a hunter in front of you (one use)"
 
 function SWEP:UseItem(owner)
 	local HT = Pulse
-	owner:EmitSound("npc/scanner/scanner_photo1.wav", 80)
+	Pulse.EmitSlot(owner, "camera", 80)
 	local eye, aim = owner:EyePos(), owner:GetAimVector()
 	local blinded = {}
 	for _, hunter in ipairs(player.GetAll()) do

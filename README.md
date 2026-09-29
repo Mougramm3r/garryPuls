@@ -118,8 +118,8 @@ Rollenvergabe (Game → Role assignment): **Fixed role**, **Player choice** (Aus
 HUD des Jägers oben rechts: Slot 1–4 mit Status (READY, Abklingzeit, ACTIVE, ON/OFF) und Taste, darunter die Menü-Taste
 und eine Zeile für die zuletzt benutzte Fähigkeit (läuft … / Abklingzeit …).
 
-**Eigene Sounds:** `.wav`, `.mp3` oder `.ogg` nach `addons/pulse/sound/pulse/` legen (z. B. `kinderlachen.mp3`),
-Map neu starten. Sie erscheinen mit ★ in der Soundauswahl.
+**Eigene Gruselsounds:** `.wav`, `.mp3` oder `.ogg` nach `addons/pulse/sound/pulse/scary/` legen (z. B. `kinderlachen.mp3`),
+Map neu starten. Sie erscheinen mit ★ in der Soundauswahl. Siehe auch [Eigene Sounds](#eigene-sounds).
 
 ## Fähigkeiten der Opfer
 
@@ -175,8 +175,14 @@ Am besten funktionieren Maps mit Navmesh. Sonst werden die Items rund um die Spa
 - **Chase-Musik** läuft außerdem für alle in den letzten Sekunden der Runde (Standard 60 s, einstellbar, 0 = aus).
 - **Ambient**: leise Hintergrundgeräusche, die im Laufe der Runde lauter werden, dazu ab und zu ein Schreck-Geräusch.
 - Eigene Dateien: `addons/pulse/sound/pulse/music/`, `.../ambient/` und `.../stingers/`. Sonst wird Half-Life-2-Musik benutzt.
-- Behind You: `addons/pulse/sound/pulse/behindu/behind/` (Sounds, solange der Jäger hinter dem Opfer steht, z. B. Flüstern, Atmen, Räuspern)
-  und `.../behindu/turn/` (wenn sich das Opfer umdreht). Mehrere Dateien = jedes Mal zufällig eine. Leerer Ordner = Half-Life-2-Sound.
+
+## Eigene Sounds
+
+**Jeder Sound hat einen eigenen Ordner** unter `addons/pulse/sound/pulse/`. Mehrere Dateien = jedes Mal zufällig eine,
+leerer Ordner = Standard-Sound. Manche Ereignisse haben noch keinen Standard und bleiben stumm, bis eine Datei im Ordner liegt
+(z. B. `round/hunt/`, `round/final/`, `round/caught/`, `hunter/stalk/`, `victim/exhausted/`, `items/pickup/`).
+Die komplette Ordnerliste steht in `sound/pulse/LIESMICH.txt`, jeder Ordner hat eine kurze Erklärung.
+Anhören: Entwickler-Menü → Sounds. Freunde laden eigene Dateien beim Joinen automatisch herunter.
 
 ## Rundenserie
 

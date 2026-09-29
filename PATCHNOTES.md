@@ -46,3 +46,10 @@
 - Rolle Seer: Slot 1 ist jetzt Mark statt Radar.
 - **Opfer-Herzschlag:** auf Slot 4 selbst an- und ausschaltbar (wenn der Admin ihn unter Server erlaubt).
 - Fix: Persönliche Einstellungen werden nach einem Server-Neustart zuverlässig wieder der richtigen SteamID zugeordnet.
+
+## Update: Sound-Ordner
+
+- **Jeder Sound hat jetzt einen eigenen Ordner** unter `sound/pulse/` (z. B. `hunter/roar/`, `victim/flash/`, `items/pills/`, `round/win_hunter/`). Mehrere Dateien = zufällige Auswahl, leerer Ordner = Standard-Sound. Übersicht in `sound/pulse/LIESMICH.txt`.
+- **Neue Sound-Stellen** (stumm, bis du Dateien hineinlegst): Versteckphase startet, Jagd beginnt, Finale, Opfer gefangen, Stalk, Mark (hört das Opfer), Mimic, Falle aufgestellt, Night Vision an, Noise-Radar-Ping, Adrenalin, außer Atem, Hiding Bonus, Item aufgehoben.
+- Gruselsounds gehören jetzt nach `sound/pulse/scary/` (direkt in `sound/pulse/` geht weiterhin).
+- Entwickler-Menü → Sounds zeigt alle Sounds mit ihrem Ordner, eigene Dateien mit ★.

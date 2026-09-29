@@ -1,11 +1,70 @@
-Eigene Gruselsounds
-===================
+Eigene Sounds für PULSE
+=======================
 
-Leg hier eigene Sounddateien ab (.wav, .mp3 oder .ogg), z. B. kinderlachen.mp3
-Sie erscheinen nach einem Map-Neustart automatisch im Soundboard des Jägers.
-Der Dateiname wird als Name angezeigt (Unterstriche werden zu Leerzeichen).
+Jeder Sound hat hier einen eigenen Ordner. Leg beliebig viele .wav/.mp3/.ogg hinein,
+dann wird jedes Mal zufällig eine Datei gespielt. Ordner leer = Standard-Sound
+(Sounds ohne Standard bleiben stumm, bis du eine Datei hineinlegst).
 
 Tipps:
-- Kurze Dateien (unter 1 MB) nehmen, die Freunde laden sie beim Joinen herunter.
-- .wav am besten mit 44100 Hz, 16 Bit.
-- Keine Umlaute oder Leerzeichen im Dateinamen verwenden.
+- Dateinamen nur Kleinbuchstaben, keine Umlaute, keine Leerzeichen.
+- Kurze Dateien (unter 1 MB); Freunde laden sie beim Joinen automatisch herunter.
+- .wav am besten 44100 Hz, 16 Bit, mono für Sounds im Raum.
+- Neue Dateien werden nach einem Map-Neustart erkannt.
+- Anhören: Entwickler-Menü (Shift + Rechtsklick auf den Tab SERVER) → Sounds.
+- Gruselsounds direkt in diesem Ordner (alte Variante) funktionieren weiterhin.
+
+Ordner:
+Hunter:
+  behindu/behind/          Behind You: behind the victim
+  behindu/turn/            Behind You: victim turns around
+  hunter/roar/             Roar
+  hunter/teleport/         Teleport
+  hunter/chaser/           Chaser Pulse (only the hunter)
+  hunter/jumpscare/        Jump Scare (the victim hears it)
+  hunter/blackout/         Blackout
+  hunter/doorslam/         Door Slam
+  hunter/trap/             Trap snaps shut
+  hunter/trap_place/       Trap placed
+  hunter/stalk/            Stalk starts (only the hunter)
+  hunter/mark/             Marked (the victim hears it)
+  hunter/mimic/            Mimic starts
+  hunter/nightvision/      Night Vision on (only the hunter)
+  hunter/ping/             Noise Radar ping (only the hunter)
+  heartbeat/               Heartbeat (sensor and victims)
+  ui/toggle/               Ability on / off
+
+Victim:
+  victim/flash/            Flashlight Blind
+  victim/blinded/          Hunter is blinded (the hunter hears it)
+  victim/silent/           Stay Silent
+  victim/decoy/            Decoy thrown
+  victim/decoy_land/       Decoy lands
+  victim/adrenaline/       Adrenaline
+  victim/exhausted/        Out of stamina
+  victim/hidden/           Hiding bonus active
+
+Items:
+  items/pickup/            Item picked up
+  items/pills/             Calming Pills
+  items/glowstick/         Glowstick
+  items/camera/            Camera Flash
+
+Sanity:
+  sanity/whispers/         Hallucination whispers
+
+Round:
+  round/prep/              Hiding phase starts
+  round/hunt/              The hunt begins
+  round/final/             Final phase begins
+  round/caught/            Victim caught / died
+  round/win_hunter/        Hunter wins
+  round/win_victims/       Victims win
+  ui/click/                Menu click
+
+Atmosphere:
+  music/                   Chase music (final phase, last minute)
+  ambient/                 Ambient loop (louder over the round)
+  stingers/                Random short scares every 25-60 s
+
+Gruselsounds (Soundboard des Jägers):
+  scary/                   Scary Sounds for the hunter's sound board (every file = own entry)

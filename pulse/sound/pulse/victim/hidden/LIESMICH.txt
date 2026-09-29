@@ -1,0 +1,7 @@
+Hiding bonus active
+===================
+
+Leg hier eigene Sounds ab (.wav, .mp3 oder .ogg). Mehrere Dateien = jedes Mal zufällig eine.
+Ordner leer = Standard-Sound (oder kein Sound, falls es keinen Standard gibt).
+Dateinamen: nur Kleinbuchstaben, keine Umlaute, keine Leerzeichen. Neue Dateien nach Map-Neustart.
+Alle Sounds anhören: Entwickler-Menü (Shift + Rechtsklick auf SERVER) → Sounds.

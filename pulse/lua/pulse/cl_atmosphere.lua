@@ -110,7 +110,7 @@ local blackoutUntil, blackoutTime = 0, 1
 net.Receive("HT_Blackout", function()
 	blackoutTime = net.ReadFloat()
 	blackoutUntil = CurTime() + blackoutTime
-	surface.PlaySound("ambient/energy/power_off1.wav")
+	HT.PlaySlotLocal("blackout")
 end)
 
 hook.Add("RenderScreenspaceEffects", "HT_BlackoutNV", function()

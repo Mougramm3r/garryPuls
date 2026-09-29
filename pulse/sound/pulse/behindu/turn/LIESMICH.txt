@@ -1,10 +1,7 @@
-Behind You – Sound, wenn sich das Opfer umdreht
-================================================
+Behind You: victim turns around
+===============================
 
-Leg hier beliebig viele Sounds ab (.wav, .mp3 oder .ogg), z. B. ein Kreischen
-oder ein kurzes Zischen. Jedes Mal wird zufällig einer gespielt.
-Danach bleibt der Jäger noch 1 s sichtbar und verschwindet.
-Ordner leer = Standard-Sound aus Half-Life 2.
-
-Dateinamen: nur Kleinbuchstaben, keine Umlaute, keine Leerzeichen.
-Neue Dateien werden nach einem Map-Neustart erkannt.
+Leg hier eigene Sounds ab (.wav, .mp3 oder .ogg). Mehrere Dateien = jedes Mal zufällig eine.
+Ordner leer = Standard-Sound (oder kein Sound, falls es keinen Standard gibt).
+Dateinamen: nur Kleinbuchstaben, keine Umlaute, keine Leerzeichen. Neue Dateien nach Map-Neustart.
+Alle Sounds anhören: Entwickler-Menü (Shift + Rechtsklick auf SERVER) → Sounds.

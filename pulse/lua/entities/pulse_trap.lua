@@ -36,8 +36,7 @@ if SERVER then
 		local HT = Pulse
 		local hold = HT.CV.trapTime:GetFloat()
 		ply:SetNWFloat("HT_RootUntil", CurTime() + hold)
-		ply:EmitSound("physics/metal/metal_box_impact_hard" .. math.random(1, 3) .. ".wav", 100)
-		ply:EmitSound("physics/metal/metal_chainlink_impact_hard1.wav", 100)
+		Pulse.EmitSlot(ply, "trap", 100)
 		util.ScreenShake(ply:GetPos(), 6, 10, 0.5, 100)
 
 		local owner = self:GetOwner()

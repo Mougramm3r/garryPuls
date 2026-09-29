@@ -282,6 +282,7 @@ end)
 local round -- nil when no round is running
 
 local function SetPhase(phase, duration)
+	if (phase == "prep" or phase == "hunt") and HT.Phase() ~= phase then HT.SendSlot(phase) end
 	SetGlobalString("HT_Phase", phase)
 	SetGlobalFloat("HT_PhaseEnd", duration and CurTime() + duration or 0)
 end
@@ -856,6 +857,7 @@ local function CheckRound()
 	if HT.Phase() == "hunt" and HT.Game.finalPhase and not round.final and round.victimCount >= 2 and victimsAlive == 1 then
 		round.final = true
 		SetGlobalBool("HT_Final", true)
+		HT.SendSlot("final")
 		for ply, p in pairs(round.players) do
 			if not p.hunter and IsAliveInRound(ply) and not p.died then
 				ply:SetNWFloat("HT_BoostFactor", 1.4)
@@ -883,6 +885,7 @@ timer.Create("HT_RoundTick", 0.5, 0, CheckRound)
 
 hook.Add("PlayerDeath", "HT_RoundDeath", function(victim, _, attacker)
 	if not round then return end
+	if round.players[victim] and not round.players[victim].died then HT.PlaySlotAt("caught", victim:GetPos(), 90) end
 	attacker = HT.OwnerPlayer(attacker)
 	local p = round.players[victim]
 	if p and not p.died then
@@ -1000,4 +1003,9 @@ hook.Add("PlayerDisconnected", "HT_RoundLeave", function(ply)
 		round.players[ply].result = round.players[ply].result or "Left the game"
 		timer.Simple(0, CheckRound)
 	end
+end)
+
+-- Item picked up (own sound in sound/pulse/items/pickup/)
+hook.Add("WeaponEquip", "HT_ItemPickup", function(wep, owner)
+	if IsValid(wep) and IsValid(owner) and string.StartWith(wep:GetClass(), "pulse_item_") then HT.SendSlot("item_pickup", owner) end
 end)

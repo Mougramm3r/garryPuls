@@ -963,50 +963,11 @@ end
 -- Developer menu (admins: shift + right click on the SERVER tab)
 ------------------------------------------------------------------------
 
--- Every sound PULSE uses, grouped. folder = own files in sound/pulse/<folder>/ replace the default.
-local SOUND_GROUPS = {
-	{ "Hunter abilities", {
-		{ "Behind You: behind the victim", "npc/stalker/breathing3.wav", 100, folder = "behindu/behind" },
-		{ "Behind You: victim turns around", "npc/stalker/go_alert2a.wav", 60, folder = "behindu/turn" },
-		{ "Roar", "npc/fast_zombie/fz_scream1.wav", 80 },
-		{ "Teleport", "npc/stalker/go_alert2a.wav", 70 },
-		{ "Chaser Pulse", "ambient/levels/citadel/weapon_disintegrate2.wav", 100 },
-		{ "Jump Scare 1", "npc/fast_zombie/fz_scream1.wav", 100 },
-		{ "Jump Scare 2", "npc/zombie/zombie_pain6.wav", 100 },
-		{ "Blackout", "ambient/energy/power_off1.wav", 80 },
-		{ "Door Slam", "doors/heavy_metal_stop1.wav", 100 },
-		{ "Trap triggered", "physics/metal/metal_chainlink_impact_hard1.wav", 100 },
-		{ "Heartbeat (sensor and victims)", "pulse_fx/heartbeat.wav", 100 },
-		{ "Toggle on / off", "buttons/blip1.wav", 100 },
-	} },
-	{ "Victim abilities", {
-		{ "Flashlight Blind", "items/flashlight1.wav", 90 },
-		{ "Hunter is blinded", "ambient/energy/zap1.wav", 100 },
-		{ "Stay Silent", "npc/zombie/foot_slide1.wav", 100 },
-		{ "Decoy", "weapons/slam/throw.wav", 100 },
-	} },
-	{ "Items", {
-		{ "Calming Pills", "npc/barnacle/barnacle_gulp1.wav", 100 },
-		{ "Glowstick", "weapons/slam/throw.wav", 100 },
-		{ "Camera Flash", "npc/scanner/scanner_photo1.wav", 100 },
-	} },
-	{ "Sanity (hallucinations)", {
-		{ "Whisper 1", "ambient/levels/citadel/strange_talk1.wav", 100 },
-		{ "Whisper 2", "ambient/levels/citadel/strange_talk3.wav", 100 },
-		{ "Whisper 3", "ambient/levels/citadel/strange_talk5.wav", 100 },
-		{ "Playground", "ambient/voices/playground_memory.wav", 100 },
-		{ "Breathing", "npc/stalker/breathing3.wav", 100 },
-	} },
-	{ "Round", {
-		{ "Hunter wins", "ambient/creatures/town_child_scream1.wav", 100 },
-		{ "Victims win", "ambient/levels/citadel/strange_talk1.wav", 100 },
-		{ "Menu click", "buttons/button14.wav", 100 },
-	} },
-	{ "Atmosphere", {
-		{ "Chase music", "music/hl2_song3.mp3", 100, folder = "music" },
-		{ "Ambient", "ambient/atmosphere/tone_quiet.wav", 100, folder = "ambient" },
-		{ "Stinger", "ambient/creatures/town_moan1.wav", 100, folder = "stingers" },
-	} },
+-- Sounds that are not in HT.SoundSlots (sh_sounds.lua): the atmosphere folders
+local ATMOSPHERE_SOUNDS = {
+	{ "Chase music", "music/hl2_song3.mp3", "music" },
+	{ "Ambient", "ambient/atmosphere/tone_quiet.wav", "ambient" },
+	{ "Stinger", "ambient/creatures/town_moan1.wav", "stingers" },
 }
 
 local devChannel
@@ -1026,18 +987,6 @@ local function PlayDevSound(path, pitch)
 	end)
 end
 
-local function OwnFiles(folder)
-	local list = {}
-	local dir = folder == "" and "pulse/" or ("pulse/" .. folder .. "/")
-	local files = file.Find("sound/" .. dir .. "*", "GAME") or {}
-	table.sort(files)
-	for _, f in ipairs(files) do
-		local ext = string.lower(string.GetExtensionFromFilename(f) or "")
-		if ext == "wav" or ext == "mp3" or ext == "ogg" then list[#list + 1] = dir .. f end
-	end
-	return list
-end
-
 local function SoundRow(p, label, path, pitch)
 	local row = Row(p, label, 26)
 	local b = row:Add("DButton")
@@ -1052,14 +1001,24 @@ local function SoundRow(p, label, path, pitch)
 	l:SetTextColor(C.faint)
 end
 
-local function SoundSection(entries)
+-- One sound: own files (★) first, then the default(s)
+local function SlotRows(p, name, folder, own, defaults, pitch)
+	for _, path in ipairs(own) do SoundRow(p, "★ " .. name, path, 100) end
+	for _, path in ipairs(defaults) do
+		SoundRow(p, name .. (#own > 0 and "  (default, not used)" or ""), path, istable(pitch) and pitch[1] or pitch)
+	end
+	if #own == 0 and #defaults == 0 then AddInfo(p, name .. ": no sound yet", C.faint) end
+	AddInfo(p, "Folder: sound/pulse/" .. folder .. "/")
+end
+
+local function SoundSection(group)
 	return function(p)
 		AddButton(p, "Stop sound", StopDevSound)
-		for _, e in ipairs(entries) do
-			local own = e.folder and OwnFiles(e.folder) or {}
-			for _, path in ipairs(own) do SoundRow(p, "★ " .. e[1], path, 100) end
-			SoundRow(p, e[1] .. (#own > 0 and "  (default, not used)" or ""), e[2], e[3])
-			if e.folder then AddInfo(p, "Own files: sound/pulse/" .. e.folder .. "/ (random pick)") end
+		for _, slot in ipairs(HT.SoundSlots) do
+			if slot.group == group then
+				local defaults = slot.default and (istable(slot.default) and slot.default or { slot.default }) or {}
+				SlotRows(p, slot.name, slot.folder, HT.OwnSounds(slot.id), defaults, slot.pitch)
+			end
 		end
 	end
 end
@@ -1115,13 +1074,22 @@ Tabs.dev = function()
 			end
 		end },
 	}
-	for _, group in ipairs(SOUND_GROUPS) do
-		sections[#sections + 1] = { "Sounds: " .. group[1], SoundSection(group[2]) }
+	for _, group in ipairs({ "Hunter", "Victim", "Items", "Sanity", "Round" }) do
+		sections[#sections + 1] = { "Sounds: " .. group, SoundSection(group) }
 	end
+	sections[#sections + 1] = { "Sounds: Atmosphere", function(p)
+		AddButton(p, "Stop sound", StopDevSound)
+		for _, e in ipairs(ATMOSPHERE_SOUNDS) do
+			SlotRows(p, e[1], e[3], HT.SoundFolderFiles(e[3]), { e[2] }, 100)
+		end
+	end }
 	sections[#sections + 1] = { "Sounds: Scary Sounds", function(p)
 		AddButton(p, "Stop sound", StopDevSound)
 		for _, e in ipairs(HT.BuiltinSounds) do SoundRow(p, e[1], e[2], 100) end
-		for _, path in ipairs(OwnFiles("")) do SoundRow(p, "★ " .. string.GetFileFromFilename(path), path, 100) end
+		local own = HT.SoundFolderFiles("scary")
+		table.Add(own, HT.SoundFolderFiles(""))
+		for _, path in ipairs(own) do SoundRow(p, "★ " .. string.GetFileFromFilename(path), path, 100) end
+		AddInfo(p, "Folder: sound/pulse/scary/ (every file becomes its own entry in the hunter's sound list)")
 	end }
 	return { sections = sections }
 end
@@ -1376,7 +1344,7 @@ function HT.OpenPillPicker(deadline)
 		net.Start("HT_PickPill")
 		net.WriteString(name)
 		net.SendToServer()
-		surface.PlaySound("buttons/button14.wav")
+		HT.PlaySlotLocal("click")
 		f:Remove()
 	end
 
@@ -1527,7 +1495,7 @@ net.Receive("HT_RoundEnd", function()
 		end
 	end
 
-	surface.PlaySound(data.winner == "hunter" and "ambient/creatures/town_child_scream1.wav" or "ambient/levels/citadel/strange_talk1.wav")
+	HT.PlaySlotLocal(data.winner == "hunter" and "win_hunter" or "win_victims")
 end)
 
 -- The server opens the picker (Default or a "Choose" role); 0 = no time limit
