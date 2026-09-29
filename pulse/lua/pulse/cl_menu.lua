@@ -867,6 +867,7 @@ Tabs.game = function()
 			end
 
 			AddInfo(p, "Victims start every round with these weapons (with some ammo). No tick = no weapons.")
+			Check(p, "Player's own loadout (from a loadout addon)", "victimOwnLoadout")
 			for _, w in ipairs(HT.VictimWeapons) do
 				AddCheck(p, w[2] .. "  (" .. w[1] .. ")", ticked[w[1]] == true, function(v)
 					ticked[w[1]] = v or nil

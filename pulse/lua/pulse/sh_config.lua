@@ -272,6 +272,7 @@ HT.GameDefaults = {
 	victimWeapons = "",          -- start weapons for victims, comma separated classes
 	victimDamage = false,        -- victims may hurt the hunter with their weapons
 	victimFriendlyFire = false,  -- victims may hurt each other
+	victimOwnLoadout = false,    -- victims keep the loadout from other addons (e.g. a loadout editor)
 
 	-- voice chat during a round
 	deadMute     = true,         -- dead players / spectators can't talk to the living (they still hear everyone)

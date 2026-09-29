@@ -61,6 +61,7 @@ local function ValidateGame(g)
 	out.victimWeapons = table.concat(HT.VictimWeaponList(g.victimWeapons), ",")
 	out.victimDamage = B(g.victimDamage, d.victimDamage)
 	out.victimFriendlyFire = B(g.victimFriendlyFire, d.victimFriendlyFire)
+	out.victimOwnLoadout = B(g.victimOwnLoadout, d.victimOwnLoadout)
 	out.deadMute = B(g.deadMute, d.deadMute)
 	out.deadTalkDead = B(g.deadTalkDead, d.deadTalkDead)
 	out.finalPhase = B(g.finalPhase, d.finalPhase)
@@ -386,6 +387,9 @@ local function Respawn(ply)
 	if not IsValid(ply) then return end
 	ply:SetNWBool("HT_Spectator", false)
 	ply:UnSpectate()
+	-- start empty: weapons from before the round are gone, loadout addons can give theirs during the spawn
+	ply:StripWeapons()
+	ply:StripAmmo()
 	ply:Spawn()
 end
 
@@ -923,17 +927,55 @@ hook.Add("PlayerDeath", "HT_RoundDeath", function(victim, _, attacker)
 	timer.Simple(0, CheckRound)
 end)
 
--- Dead players stay spectators until the round ends
-hook.Add("PlayerDeathThink", "HT_NoRespawn", function()
-	if round then return false end
+-- Dead players stay spectators until the round ends (and become one if the timer above was missed)
+hook.Add("PlayerDeathThink", "HT_NoRespawn", function(ply)
+	if not round then return end
+	local p = round.players[ply]
+	if not ply:GetNWBool("HT_Spectator", false) and (not p or (p.died and CurTime() - p.died > 2.5)) then MakeSpectator(ply) end
+	return false
+end)
+
+-- Where a dead player's own camera is (see cl_atmosphere.lua), so the world there is sent to them
+util.AddNetworkString("HT_SpecCam")
+net.Receive("HT_SpecCam", function(_, ply)
+	local pos = net.ReadVector()
+	if round and (not ply:Alive() or ply:GetNWBool("HT_Spectator", false)) then ply.HT_SpecCam = pos end
+end)
+hook.Add("SetupPlayerVisibility", "HT_SpecCam", function(ply)
+	if round and ply.HT_SpecCam and (not ply:Alive() or ply:GetNWBool("HT_Spectator", false)) then AddOriginToPVS(ply.HT_SpecCam) end
 end)
 
 -- Late joiners watch until the next round
 -- Dead participants and late joiners spawn as spectators until the round ends
+-- Other addons' loadouts (e.g. a loadout editor): run their PlayerLoadout hooks for this player
+local function OtherLoadouts(ply)
+	for name, fn in pairs(hook.GetTable().PlayerLoadout or {}) do
+		if name ~= "HT_Loadout" and isfunction(fn) then
+			local ok, err = pcall(fn, ply)
+			if not ok then ErrorNoHalt("[PULSE] Loadout hook " .. tostring(name) .. ": " .. tostring(err) .. "\n") end
+		end
+	end
+end
+
+local function GiveHunterWeapon(ply)
+	ply:StripWeapons()
+	ply:StripAmmo()
+	if HT.Game.hunterWeapon ~= "" and not ply.HT_Pill then ply:Give(HT.Game.hunterWeapon) end
+end
+
 hook.Add("PlayerSpawn", "HT_Spectators", function(ply)
 	if not round then return end
 	local p = round.players[ply]
-	if p and not p.died then return end
+	if p and not p.died then
+		-- another addon's loadout hook may have stopped ours: hunters still only get the hunter weapon
+		if p.hunter then
+			local spawned = CurTime()
+			timer.Simple(0.2, function()
+				if round and IsValid(ply) and (ply.HT_LoadoutDone or 0) < spawned and HT.IsHunter(ply) then GiveHunterWeapon(ply) end
+			end)
+		end
+		return
+	end
 	timer.Simple(0, function()
 		if round and IsValid(ply) and (not round.players[ply] or round.players[ply].died) then MakeSpectator(ply) end
 	end)
@@ -970,13 +1012,19 @@ end)
 -- Weapons: hunters get the hunter weapon, victims get the start weapons set in Game > Round
 hook.Add("PlayerLoadout", "HT_Loadout", function(ply)
 	if not round then return end
-	ply:StripWeapons()
-	ply:StripAmmo()
 	local p = round.players[ply]
+	ply.HT_LoadoutDone = CurTime()
+	-- victims may keep their own loadout from other addons (Game > Victim weapons)
+	local own = p and not p.hunter and not p.died and HT.Game.victimOwnLoadout
+	if not own then
+		ply:StripWeapons()
+		ply:StripAmmo()
+	end
 	if p and not p.died then
 		if p.hunter then
-			if HT.Game.hunterWeapon ~= "" then ply:Give(HT.Game.hunterWeapon) end
+			GiveHunterWeapon(ply)
 		else
+			if own then OtherLoadouts(ply) end
 			for _, class in ipairs(HT.VictimWeaponList(HT.Game.victimWeapons)) do
 				local wep = ply:Give(class)
 				if IsValid(wep) and wep:GetPrimaryAmmoType() >= 0 then

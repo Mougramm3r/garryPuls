@@ -53,6 +53,7 @@ Die Slot-Tasten wechseln keine Waffen mehr, Waffen und Items wählst du mit dem 
 
 1. Der Admin stellt im Tab **Game** alles ein und drückt **Start round**.
 2. Jäger werden bestimmt (zufällig oder vorausgewählt). Alle respawnen, Jäger bekommen ihre Waffe (Standard: Brechstange), Opfer die Startwaffen aus **Game → Victim weapons** (Standard: keine). Dort auch: Schaden am Jäger und **Friendly fire** (beides Standard aus).
+   **Eigenes Loadout:** Mit „Player's own loadout“ behalten Opfer die Waffen aus einem Loadout-Addon (zusätzlich zu den Startwaffen).
    **Voice chat:** Tote und Zuschauer können in der Runde nicht mit den Lebenden sprechen, hören aber alles (untereinander dürfen Tote reden; beides unter Game → Voice chat abschaltbar). Funktioniert auch mit VoiceActivity (Mikro immer an).
    Ob Opfer dem Jäger damit Schaden machen dürfen, ist dort einstellbar (Standard: aus).
    Wird der Jäger getroffen, kann er kurz nicht sprinten (Standard 1,5 s, Server-Tab).

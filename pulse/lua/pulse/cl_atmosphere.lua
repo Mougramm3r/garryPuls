@@ -239,13 +239,125 @@ end)
 -- Spectator info
 ------------------------------------------------------------------------
 
+-- Our own camera for dead players / spectators: follow a living player or fly freely.
+-- (GMod's death camera would stay inside the own body: dark, red and blurry.)
+local spec = { pos = nil, ang = nil, target = nil, keys = {}, nextSend = 0 }
+
+local function Spectating(me)
+	return HT.InRound() and (not me:Alive() or me:GetNWBool("HT_Spectator", false))
+end
+HT.Spectating = Spectating
+
+local function LivingPlayers(me)
+	local list = {}
+	for _, ply in ipairs(player.GetAll()) do
+		if ply ~= me and ply:Alive() and ply:GetObserverMode() == OBS_MODE_NONE and not ply:GetNWBool("HT_Spectator", false) then
+			list[#list + 1] = ply
+		end
+	end
+	table.sort(list, function(a, b) return a:EntIndex() < b:EntIndex() end)
+	return list
+end
+
+local function Pressed(name, down)
+	local was = spec.keys[name]
+	spec.keys[name] = down
+	return down and not was
+end
+
+local function BindDown(bind)
+	local key = input.LookupBinding(bind)
+	local code = key and input.GetKeyCode(key)
+	return code and code > 0 and input.IsButtonDown(code) or false
+end
+
+hook.Add("Think", "HT_SpectatorCam", function()
+	local me = LP()
+	if not me or not Spectating(me) then
+		spec.pos, spec.ang, spec.target = nil, nil, nil
+		return
+	end
+	spec.ang = spec.ang or me:EyeAngles()
+	spec.pos = spec.pos or me:EyePos()
+
+	local blocked = vgui.GetKeyboardFocus() or gui.IsGameUIVisible() or (HT.AnyWindowOpen and HT.AnyWindowOpen())
+	local left = Pressed("l", not blocked and input.IsMouseDown(MOUSE_LEFT))
+	local right = Pressed("r", not blocked and input.IsMouseDown(MOUSE_RIGHT))
+	local jump = Pressed("j", not blocked and BindDown("+jump"))
+
+	-- left / right click: next / previous living player, space: free camera
+	if left or right then
+		local list = LivingPlayers(me)
+		if #list > 0 then
+			local index = 0
+			for i, ply in ipairs(list) do if ply == spec.target then index = i end end
+			index = index + (left and 1 or -1)
+			if index < 1 then index = #list elseif index > #list then index = 1 end
+			spec.target = list[index]
+		end
+	elseif jump then
+		spec.target = nil
+	end
+	if IsValid(spec.target) and not spec.target:Alive() then spec.target = nil end
+
+	-- free camera: fly with the movement keys
+	if not IsValid(spec.target) and not blocked then
+		local speed = (BindDown("+speed") and 900 or 400) * FrameTime()
+		local fwd, rgt = spec.ang:Forward(), spec.ang:Right()
+		local move = Vector(0, 0, 0)
+		if BindDown("+forward") then move = move + fwd end
+		if BindDown("+back") then move = move - fwd end
+		if BindDown("+moveright") then move = move + rgt end
+		if BindDown("+moveleft") then move = move - rgt end
+		if BindDown("+duck") then move.z = move.z - 1 end
+		spec.pos = spec.pos + move * speed
+	end
+
+	-- tell the server where we look, so things there are sent to us
+	if CurTime() > spec.nextSend then
+		spec.nextSend = CurTime() + 0.3
+		net.Start("HT_SpecCam")
+		net.WriteVector(IsValid(spec.target) and spec.target:GetPos() or spec.pos)
+		net.SendToServer()
+	end
+end)
+
+-- mouse look, also while dead
+hook.Add("CreateMove", "HT_SpectatorLook", function(cmd)
+	local me = LP()
+	if not me or not Spectating(me) or not spec.ang then return end
+	if vgui.CursorVisible() then return end
+	local sens = GetConVar("sensitivity"):GetFloat() * 0.022
+	spec.ang.p = math.Clamp(spec.ang.p + cmd:GetMouseY() * sens, -89, 89)
+	spec.ang.y = spec.ang.y - cmd:GetMouseX() * sens
+	spec.ang.r = 0
+end)
+
+hook.Add("CalcView", "HT_SpectatorView", function(ply, _, _, fov)
+	if not Spectating(ply) or not spec.pos then return end
+	local origin = spec.pos
+	if IsValid(spec.target) then
+		local eye = spec.target:EyePos()
+		local tr = util.TraceHull({ start = eye, endpos = eye - spec.ang:Forward() * 110,
+			mins = Vector(-6, -6, -6), maxs = Vector(6, 6, 6), mask = MASK_SOLID_BRUSHONLY })
+		origin = tr.HitPos
+		spec.pos = origin -- space keeps the camera here
+	end
+	return { origin = origin, angles = spec.ang, fov = fov, drawviewer = false }
+end)
+
+hook.Add("GetMotionBlurValues", "HT_SpectatorNoBlur", function()
+	local me = LP()
+	if me and Spectating(me) then return 0, 0, 0, 0 end
+end)
+
 hook.Add("HUDPaint", "HT_SpectatorHUD", function()
 	local me = LP()
-	if not me or not me:GetNWBool("HT_Spectator", false) or not HT.InRound() then return end
-	local target = me:GetObserverTarget()
-	local text = IsValid(target) and target:IsPlayer() and ("SPECTATING " .. string.upper(target:Nick())) or "SPECTATING (FREE CAMERA)"
+	if not me or not Spectating(me) then return end
+	local target = spec.target
+	local text = IsValid(target) and ("SPECTATING " .. string.upper(target:Nick())) or "SPECTATING (FREE CAMERA)"
 	draw.SimpleTextOutlined(text, "HT_Sub", ScrW() / 2, ScrH() - 70, C.text, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, color_black)
-	draw.SimpleTextOutlined("Left / right click: switch player   ·   Space: free camera", "HT_Row", ScrW() / 2, ScrH() - 46,
+	draw.SimpleTextOutlined("Left / right click: switch player   ·   Space: free camera (WASD, Shift = faster)", "HT_Row", ScrW() / 2, ScrH() - 46,
 		C.muted, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, color_black)
 	if HT.Game.deadMute then
 		local text2 = HT.Game.deadTalkDead and "The living can't hear you. Other dead players can." or "Nobody can hear you until the round ends."

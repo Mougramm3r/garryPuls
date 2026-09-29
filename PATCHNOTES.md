@@ -70,3 +70,11 @@
 - **Tote reden nicht mehr mit den Lebenden:** Wer in der Runde tot ist oder zuschaut, wird von den Lebenden nicht mehr gehört, hört selbst aber weiter alles. Tote können untereinander reden. Beides unter Game → **Voice chat** einstellbar (Standard: an).
 - Kompatibel mit **VoiceActivity** (Mikrofon immer an) und dem normalen GMod-Voicechat.
 - Zuschauer sehen unten einen Hinweis, dass die Lebenden sie nicht hören.
+
+## Update: Zuschauer-Kamera & Loadout-Addons
+
+- **Fix Zuschauen als Toter:** PULSE hat jetzt eine eigene Zuschauer-Kamera. Vorher hing die Kamera in der eigenen Leiche (dunkel, rot, verschwommen).
+  - Linksklick / Rechtsklick: nächster / vorheriger lebender Spieler (Kamera hinter ihm, Maus dreht).
+  - Leertaste: freie Kamera, fliegen mit WASD, Shift = schneller, Ducken = runter.
+  - Falls der Zuschauermodus nach dem Tod nicht startet, springt er jetzt spätestens nach 2,5 s von selbst an.
+- **Loadout-Addons:** neue Option unter Game → Victim weapons: **„Player's own loadout (from a loadout addon)“**. Opfer behalten dann zum Rundenstart das Loadout aus ihrem Loadout-Addon, zusätzlich zu den angehakten Startwaffen. Jäger bekommen weiterhin nur die Jäger-Waffe.
