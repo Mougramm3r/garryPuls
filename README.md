@@ -171,6 +171,8 @@ Am besten funktionieren Maps mit Navmesh. Sonst werden die Items rund um die Spa
 - **Chase-Musik** läuft außerdem für alle in den letzten Sekunden der Runde (Standard 60 s, einstellbar, 0 = aus).
 - **Ambient**: leise Hintergrundgeräusche, die im Laufe der Runde lauter werden, dazu ab und zu ein Schreck-Geräusch.
 - Eigene Dateien: `addons/pulse/sound/pulse/music/`, `.../ambient/` und `.../stingers/`. Sonst wird Half-Life-2-Musik benutzt.
+- Behind You: `addons/pulse/sound/pulse/behindu/behind/` (Sounds, solange der Jäger hinter dem Opfer steht, z. B. Flüstern, Atmen, Räuspern)
+  und `.../behindu/turn/` (wenn sich das Opfer umdreht). Mehrere Dateien = jedes Mal zufällig eine. Leerer Ordner = Half-Life-2-Sound.
 
 ## Rundenserie
 

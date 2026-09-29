@@ -18,3 +18,5 @@
 - **Neu:** Schalter „Victims can hurt the hunter with their weapons“ (Standard: aus).
 - **Medkit entfernt.**
 - **Jäger getroffen:** Schaden unterbricht den Sprint des Jägers, er kann 1,5 s nur gehen (einstellbar unter Server → „Hunter hit: no sprint for“, 0 = aus). Gilt auch für Pill-Charaktere.
+- **Eigene Behind-You-Sounds:** neue Ordner `sound/pulse/behindu/behind/` (während der Jäger hinter dem Opfer steht) und `sound/pulse/behindu/turn/` (wenn sich das Opfer umdreht). Mehrere Dateien = zufällige Auswahl, der nächste Sound startet erst nach dem vorigen.
+- Eigene Musik/Ambient/Stinger werden jetzt auch an Freunde übertragen (vorher hörte sie nur der Host).

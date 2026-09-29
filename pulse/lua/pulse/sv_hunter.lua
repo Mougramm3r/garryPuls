@@ -666,6 +666,35 @@ end
 
 local BREATH_SOUND = "npc/stalker/breathing3.wav"
 local VANISH_SOUND = "npc/stalker/go_alert2a.wav"
+
+-- Own sounds: sound/pulse/behindu/behind/ (while standing behind) and sound/pulse/behindu/turn/ (victim turns around).
+-- Several files = a random one each time. Empty folder = the Half-Life 2 sound.
+local function FolderSounds(folder)
+	local list = {}
+	local files = file.Find("sound/pulse/" .. folder .. "/*", "GAME") or {}
+	table.sort(files)
+	for _, f in ipairs(files) do
+		local ext = string.lower(string.GetExtensionFromFilename(f) or "")
+		if ext == "wav" or ext == "mp3" or ext == "ogg" then
+			local path = "pulse/" .. folder .. "/" .. f
+			resource.AddFile("sound/" .. path) -- friends download it when joining
+			list[#list + 1] = path
+		end
+	end
+	return list
+end
+local behindSounds = FolderSounds("behindu/behind")
+local turnSounds = FolderSounds("behindu/turn")
+-- own music, ambient and stingers are played by the clients: they need the files too
+for _, folder in ipairs({ "music", "ambient", "stingers" }) do FolderSounds(folder) end
+
+-- Plays a random own sound (or the built-in one) and returns how long it lasts
+local function PlayFrom(list, builtin, pos, level, builtinPitch)
+	local path = #list > 0 and list[math.random(#list)] or builtin
+	sound.Play(path, pos, level, #list > 0 and 100 or builtinPitch, 1)
+	local len = SoundDuration(path) or 0
+	return (len > 0 and len < 15) and len or 2
+end
 local TURN_CONE = math.cos(math.rad(55))
 local SEEN_TIME = 1 -- the hunter stays visible this long after the victim turned around
 
@@ -688,13 +717,14 @@ timer.Create("HT_BehindTick", 0.1, 0, function()
 				dir:Normalize()
 				if victim:GetAimVector():Dot(dir) > TURN_CONE then
 					-- seen: stay a moment so the victim really sees the hunter, then vanish
-					sound.Play(VANISH_SOUND, ply:EyePos(), 55, 60, 0.5)
+					PlayFrom(turnSounds, VANISH_SOUND, ply:EyePos(), #turnSounds > 0 and 75 or 55, 60)
 					HT.Scare(victim, 20)
 					ply.HT_BehindSeen = now + SEEN_TIME
 					ply:SetNWFloat("HT_Active_behind", now + SEEN_TIME + 0.5)
 				elseif now > (ply.HT_BehindBreath or 0) then
-					ply.HT_BehindBreath = now + 2.5
-					sound.Play(BREATH_SOUND, ply:EyePos(), 65, 100, 0.8)
+					-- next sound after this one ends (short pause in between)
+					local len = PlayFrom(behindSounds, BREATH_SOUND, ply:EyePos(), 65, 100)
+					ply.HT_BehindBreath = now + math.max(2.5, len + math.Rand(0.5, 1.5))
 				end
 			end
 		end
