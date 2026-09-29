@@ -247,4 +247,8 @@ hook.Add("HUDPaint", "HT_SpectatorHUD", function()
 	draw.SimpleTextOutlined(text, "HT_Sub", ScrW() / 2, ScrH() - 70, C.text, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, color_black)
 	draw.SimpleTextOutlined("Left / right click: switch player   ·   Space: free camera", "HT_Row", ScrW() / 2, ScrH() - 46,
 		C.muted, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, color_black)
+	if HT.Game.deadMute then
+		local text2 = HT.Game.deadTalkDead and "The living can't hear you. Other dead players can." or "Nobody can hear you until the round ends."
+		draw.SimpleTextOutlined(text2, "HT_Row", ScrW() / 2, ScrH() - 24, C.accent, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, color_black)
+	end
 end)

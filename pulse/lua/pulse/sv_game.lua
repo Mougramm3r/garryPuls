@@ -61,6 +61,8 @@ local function ValidateGame(g)
 	out.victimWeapons = table.concat(HT.VictimWeaponList(g.victimWeapons), ",")
 	out.victimDamage = B(g.victimDamage, d.victimDamage)
 	out.victimFriendlyFire = B(g.victimFriendlyFire, d.victimFriendlyFire)
+	out.deadMute = B(g.deadMute, d.deadMute)
+	out.deadTalkDead = B(g.deadTalkDead, d.deadTalkDead)
 	out.finalPhase = B(g.finalPhase, d.finalPhase)
 	out.finalBoost = math.Clamp(tonumber(g.finalBoost) or d.finalBoost, 0, 30)
 	out.musicLast = math.Clamp(math.floor(tonumber(g.musicLast) or d.musicLast), 0, 600)
@@ -1020,4 +1022,17 @@ end)
 -- Item picked up (own sound in sound/pulse/items/pickup/)
 hook.Add("WeaponEquip", "HT_ItemPickup", function(wep, owner)
 	if IsValid(wep) and IsValid(owner) and string.StartWith(wep:GetClass(), "pulse_item_") then HT.SendSlot("item_pickup", owner) end
+end)
+
+-- Voice chat: dead players and spectators can't talk to the living during a round, but still hear everyone.
+-- Works with the normal GMod voice chat and addons that only switch the microphone on (e.g. VoiceActivity).
+local function IsDeadInRound(ply)
+	return not ply:Alive() or ply:GetNWBool("HT_Spectator", false) or ply:GetObserverMode() ~= OBS_MODE_NONE
+end
+
+hook.Add("PlayerCanHearPlayersVoice", "HT_DeadVoice", function(listener, talker)
+	if not round or not HT.Game.deadMute or listener == talker then return end
+	if not IsValid(talker) or not IsDeadInRound(talker) then return end
+	if IsDeadInRound(listener) and HT.Game.deadTalkDead then return end
+	return false, false
 end)

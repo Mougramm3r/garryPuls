@@ -900,6 +900,11 @@ Tabs.game = function()
 			Check(p, "Friendly fire (victims can hurt each other)", "victimFriendlyFire")
 			AddInfo(p, "Both off: weapons only work against NPCs, props and doors.")
 		end },
+		{ "Voice chat", function(p)
+			Check(p, "Dead players can't talk to the living (they still hear everyone)", "deadMute")
+			Check(p, "Dead players can talk to each other", "deadTalkDead")
+			AddInfo(p, "Only during a round. Works with the normal voice chat and with addons that keep the microphone on (e.g. VoiceActivity).")
+		end },
 		{ "Hunters", function(p)
 			Slider(p, "Number of hunters", 1, 8, 0, "hunterCount")
 			Combo(p, "Hunter selection", { { "Random", "random" }, { "Preselected", "preselected" } }, "hunterSelect")

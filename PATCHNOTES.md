@@ -64,3 +64,9 @@
 - **Victim weapons:** neue Option ganz unten **„Friendly fire“** (Opfer können sich gegenseitig verletzen, Standard: aus).
 - **Game-Tab neu sortiert:** Round → **Game Series** (umbenannt, direkt unter Round) → Victim weapons → Hunters → Role assignment → **Characters** (direkt darunter) → Final phase & music → Items.
 - **Trennlinien** zwischen den Abschnitten in allen Tabs.
+
+## Update: Voice Chat
+
+- **Tote reden nicht mehr mit den Lebenden:** Wer in der Runde tot ist oder zuschaut, wird von den Lebenden nicht mehr gehört, hört selbst aber weiter alles. Tote können untereinander reden. Beides unter Game → **Voice chat** einstellbar (Standard: an).
+- Kompatibel mit **VoiceActivity** (Mikrofon immer an) und dem normalen GMod-Voicechat.
+- Zuschauer sehen unten einen Hinweis, dass die Lebenden sie nicht hören.

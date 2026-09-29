@@ -273,6 +273,11 @@ HT.GameDefaults = {
 	victimDamage = false,        -- victims may hurt the hunter with their weapons
 	victimFriendlyFire = false,  -- victims may hurt each other
 
+	-- voice chat during a round
+	deadMute     = true,         -- dead players / spectators can't talk to the living (they still hear everyone)
+	deadTalkDead = true,         -- dead players can talk to each other
+
+
 	-- final phase and atmosphere
 	finalPhase   = true,         -- last victim standing gets a speed boost, chase music starts
 	finalBoost   = 5,            -- seconds of speed boost for the last victim
